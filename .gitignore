@@ -1,0 +1,19 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/.vs/agc-dev/v16/ipch/AutoPCH
+*.db
+*.db-shm
+*.db-wal
+*.opendb
+/x64/Release/agc-dev.tlog
+/x64/Release
+/x64/Debug/agc-dev.tlog
+/x64/Debug
+/.vs/agc-dev/v16
+/.vs
+*.obj
+x64
+*.o
+/agc
