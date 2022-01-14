@@ -1,4 +1,8 @@
-# Assembled Genomes Compressor
+Assembled Genomes Compressor
+=
+[![GitHub downloads](https://img.shields.io/github/downloads/refresh-bio/agc/total.svg?style=flag&label=GitHub%20downloads)](https://github.com/refresh-bio/agc/releases)
+[![Bioconda downloads](https://img.shields.io/conda/dn/bioconda/agc.svg?style=flag&label=Bioconda%20downloads)](https://anaconda.org/bioconda/agc)
+
 Assembled Genomes Compressor (AGC) is a tool designed to compress collections of de-novo assembled genomes.
 It can be used for various types of datasets: short genomes (viruses) as well as long (humans).
 
