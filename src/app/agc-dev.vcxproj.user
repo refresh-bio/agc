@@ -6,8 +6,8 @@
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LocalDebuggerCommandArguments>getctg toy_ex.agc chr1@ref:0-6000</LocalDebuggerCommandArguments>
-    <LocalDebuggerWorkingDirectory>k:\hpp</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerCommandArguments>getset toy_ex.agc a</LocalDebuggerCommandArguments>
+    <LocalDebuggerWorkingDirectory>k:\hpp\toy</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
 </Project>

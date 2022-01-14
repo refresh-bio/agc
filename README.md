@@ -3,10 +3,10 @@ Assembled Genomes Compressor (AGC) is a tool designed to compress collections of
 It can be used for various types of datasets: short genomes (viruses) as well as long (humans).
 
 The tool offers high compression ratios, especially for high-quality genomes. 
-For example the 96 haplotype sequences from the [Human Pangenome Project](https://github.com/human-pangenomics/HPP_Year1_Assemblies) (47 samples), [GRCh 38 reference](ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz), and [CHM13 v.1.1 assembly](https://github.com/marbl/CHM13) containing about 290Gb are squeezed to about 1.4GB. 
+For example the 96 haplotype sequences from the [Human Pangenome Project](https://github.com/human-pangenomics/HPP_Year1_Assemblies) (47 samples), [GRCh 38 reference](ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz), and [CHM13 v.1.1 assembly](https://github.com/marbl/CHM13) containing about 290Gb are squeezed to less than 1.5GB. 
 The compressed samples are easily accessible as *agc* offers extraction of single samples or contigs in a few seconds.
 The compression is also fast. 
-On a AMD TR 3990X-based machine (32 threads used) it takes about 8 minutes to compress the HPP collection.
+On a AMD TR 3990X-based machine (32 threads used) it takes about 12 minutes to compress the HPP collection.
 
 
 ## Quick start
@@ -24,7 +24,7 @@ cd agc && make
 ./agc create -i fn.txt -o col.agc -k 29 -l 22 -b 100 -t 16 ref.fa   # same as above, but manual selection 
                                                                     # of compression parameters
 ./agc create -i fn.txt -f -o col.agc ref.fa                         # compress in fast mode (read description below)
-./gac create -c -o col.agc ref.fa samples.fa                        # compress samples stored in a single file
+./agc create -c -o col.agc ref.fa samples.fa                        # compress samples stored in a single file
                                                                     # (reference must be given separately)
 
 # Add new genomes to the collection

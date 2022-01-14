@@ -212,29 +212,37 @@ bool CAGCDecompressorLibrary::decompress_contig(task_desc_t& contig_desc, ZSTD_D
 	int64_t to = contig_name_range.to;
 	int64_t curr_pos = 0;
 
-	if (from < 0)
+	if (from < 0 && to < 0)
 	{
-		if (is_app_mode)
-			cerr << "Warning: Start of range (" + to_string(from) + ") is below 0, so changed to 0\n";
 		from = 0;
-		contig_name_range.from = 0;
-	}
-	if (to < 0)
-	{
-		if (is_app_mode)
-			cerr << "Warning: End of range (" + to_string(to) + ") is below 0, so changed to max value\n";
 		to = 0x7fffffffffffffffu;
-		contig_name_range.to = 0x7fffffffffffffffu;
 	}
-	if (from > to)
+	else
 	{
-		if (is_app_mode)
-			cerr << "Warning: End of range (" + to_string(to) + ") is prior to start of range (" + to_string(from) + ") so changed to whole contig\n";
+		if (from < 0)
+		{
+			if (is_app_mode)
+				cerr << "Warning: Start of range (" + to_string(from) + ") is below 0, so changed to 0\n";
+			from = 0;
+			contig_name_range.from = 0;
+		}
+		if (to < 0)
+		{
+			if (is_app_mode)
+				cerr << "Warning: End of range (" + to_string(to) + ") is below 0, so changed to max value\n";
+			to = 0x7fffffffffffffffu;
+			contig_name_range.to = 0x7fffffffffffffffu;
+		}
+		if (from > to)
+		{
+			if (is_app_mode)
+				cerr << "Warning: End of range (" + to_string(to) + ") is prior to start of range (" + to_string(from) + ") so changed to whole contig\n";
 
-		from = 0;
-		to = 0x7fffffffffffffffu;
-		contig_name_range.from = -1;
-		contig_name_range.to = -1;
+			from = 0;
+			to = 0x7fffffffffffffffu;
+			contig_name_range.from = -1;
+			contig_name_range.to = -1;
+		}
 	}
 
 	for (auto seg : get<2>(contig_desc))
