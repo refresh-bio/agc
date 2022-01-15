@@ -64,13 +64,14 @@ agc should be downloaded from https://github.com/refresh-bio/agc and compiled. T
 * Linux: make project (G++ 9.0 or newer required),
 * MacOS: make project (G++ 9.0 or newer required).
 
-<!---
+The release contains a set of [precompiled binaries](https://github.com/refresh-bio/agc/releases)for Windows, Linux, and OS X. 
+
 The software is also available on [Bioconda](https://anaconda.org/bioconda/agc):
 ```
 conda install -c bioconda agc
 ```
-For detailed instructions how to set up Bioconda, please refer to the [Bioconda manual](https://bioconda.github.io/user/install.html#install-conda).
---->
+For detailed instructions on how to set up Bioconda, please refer to the [Bioconda manual](https://bioconda.github.io/user/install.html#install-conda).
+
 
 ## Usage
 
