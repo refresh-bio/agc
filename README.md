@@ -24,6 +24,7 @@ cd agc && make
 ./agc create ref.fa in1.fa.gz in2.fa.gz > col.agc                   # gzipped non-reference FASTA files
 ./agc create -i fn.txt ref.fa > col.agc                             # fl.txt contains 2 file names in seperate lines: 
                                                                     # in1.fa in2.fa
+./agc create -a -i fn.txt ref.fa > col.agc                          # adaptive mode (use for bacterial data)
 ./agc create -i fn.txt -o col.agc ref.fa                            # output file name is specified as a parameter
 ./agc create -i fn.txt -o col.agc -k 29 -l 22 -b 100 -t 16 ref.fa   # same as above, but manual selection 
                                                                     # of compression parameters
@@ -73,6 +74,16 @@ conda install -c bioconda agc
 For detailed instructions on how to set up Bioconda, please refer to the [Bioconda manual](https://bioconda.github.io/user/install.html#install-conda).
 
 
+## Version history
+* 1.0 (23 Dec 2021)
+  * First public release.
+* 1.1 (14 Jan 2022)
+  * Small bugfixes.
+* 2.0 (20 Mar 2022)
+  * Added adaptive mode (especially for bacterial data).
+  * New archive format: AGC 1.x tool cannot read AGC 2 archives, but AGC 2.x tool can operate on AGC 1.x and AGC 2.x archives.
+
+
 ## Usage
 
 `agc <command> [options]`
@@ -91,10 +102,10 @@ Command:
 `agc create [options] <ref.fa> [<in1.fa> ...] > <out.agc>`
 
 Options:
+* `-a`             - adaptive mode (default: false)
 * `-b <int>`       - batch size (default: 50; min: 1; max: 1000000000)
 * `-c`             - concatenated genomes in a single file (default: false)
 * `-d`             - do not store cmd-line (default: false)
-* `-f`             - use fast mode (default: false)
 * `-i <file_name>` - file with FASTA file names (alterantive to listing file names explicitely in command line)
 * `-k <int>`       - k-mer length (default: 31; min: 17; max: 32)
 * `-l <int>`       - min. match length (default: 20; min: 15; max: 32)
@@ -115,6 +126,7 @@ Setting parameters allows difference compromises, usually between compressed siz
 * *minimal match length* is an internal parameter specifying the minimal match length when the similarities between contigs are looked for. If you really want, you can try to change it. Nevertheless, the impact on the compression ratios and (de)compression speeds should be insignificant.
 * *segment size* specifies how the contigs are splitted into shorter fragments (segments) during the compresssion. This is an expected segment size and some segments can be much longer. In general, the more similar the genomes in a collection the larger the parameter can be. Nevertheless, the impact of its value on the compression ratios and (de)compression speeds is limited. If you want, you can experiment with it. Note that for short sequences, especially for virues, the segment size should be smaller, you can try 10000 or similar values.
 * *no. of threads* impacts the running time. For large genomes (e.g., human) the parallelization of the compression is realatively good and you can use 30 or more threads. Setting *segment size* to larger values can improve paralelization a bit.
+* *adaptive mode* allows to look for new splitters in all genomes (not only reference). It needs more memory but give significant gains in compression ratio and speed especially for highly divergent genomes, e.g., bacterial.
 
 
 
@@ -125,7 +137,6 @@ Setting parameters allows difference compromises, usually between compressed siz
 Options:
 * `-c`             - concatenated genomes in a single file (default: false)
 * `-d`             - do not store cmd-line (default: false)
-* `-f`             - use fast mode (default: false)
 * `-i <file_name>` - file with FASTA file names (alterantive to listing file names explicitely in command line)
 * `-o <file_name>` - output to file (default: output is sent to stdout)
 * `-t <int>`       - no of threads (default: 24; min: 1; max: 48)
