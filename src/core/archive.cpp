@@ -2,10 +2,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 1.0
-// Date   : 2021-12-17
+// Version: 2.0
+// Date   : 2022-02-24
 // *******************************************************************************************
 
 #include "../core/archive.h"
@@ -112,30 +112,6 @@ size_t CArchive::write(const string &s)
 
 	return s.size() + 1;
 }
-
-// *******************************************************************************************
-/*size_t CArchive::read_fixed(uint64_t& x)
-{
-	x = f_in.ReadUInt(8);
-
-	return 8;
-}*/
-
-// *******************************************************************************************
-/*size_t CArchive::read(uint64_t& x)
-{
-    int no_bytes = f_in.Get();
-
-    x = 0;
-
-    for (int i = 0; i < no_bytes; ++i)
-    {
-        x <<= 8;
-        x += (size_t)f_in.Get();
-    }
-
-    return no_bytes + 1;
-}*/
 
 // *******************************************************************************************
 size_t CArchive::read(string& s)

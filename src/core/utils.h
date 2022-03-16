@@ -5,10 +5,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 1.0
-// Date   : 2021-12-17
+// Version: 2.0
+// Date   : 2022-02-24
 // *******************************************************************************************
 
 #include "../core/defs.h"
@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <condition_variable>
 #include <atomic>
+#include <functional>
 #include <cstddef>
 
 using namespace std;
@@ -147,41 +148,30 @@ constexpr int64_t zigzag_decode(uint64_t x)
 		return (int64_t)(x / 2);
 }
 
-#if 0
-// Not ready
 // **********************************************************************************
-constexpr uint64_t zigzag_encode(int64_t x, int64_t min_val, int64_t max_val)
+constexpr uint64_t zigzag_encode(uint64_t x_curr, uint64_t x_prev)
 {
-	int64_t min_dif = min(-min_val, max_val);
+	if (x_curr < x_prev)
+		return 2 * (x_prev - x_curr) - 1u;
 
-	if (x == 0)
-		return 0;
+	if (x_curr < 2 * x_prev)
+		return 2 * (x_curr - x_prev);
 
-	if (x > 0)
-	{
-		if (x <= min_dif)
-			return (uint64_t)(2 * x);
-		else
-			return (uint64_t)(2 * min_dif + (x - min_dif));
-	}
-	else
-	{
-		if (-x <= min_dif)
-			return (uint64_t)(2 * (-x) - 1);
-		else
-			return (uint64_t)(2 * (-x) - 1 + (min_dif - x));
-	}
+	return x_curr;
 }
 
 // **********************************************************************************
-constexpr int64_t zigzag_decode(uint64_t x, int64_t min_val, int64_t max_val)
+constexpr uint64_t zigzag_decode(uint64_t x_val, uint64_t x_prev)
 {
-	if (x & 1)
-		return -(int64_t) (x + 1) / 2;
-	else
-		return (int64_t)(x / 2);
+	if (x_val >= 2 * x_prev)
+		return x_val;
+
+	if (x_val & 1)
+//		return (2 * x_prev - x_val - 1u) / 2;
+		return (2 * x_prev - x_val) / 2;			// optimization (-1 is unnecessary due to /2)
+
+	return (x_val + 2 * x_prev) / 2;
 }
-#endif
 
 // *****************************************************************************************
 //
@@ -195,7 +185,7 @@ public:
 		m_count_reset_value(count)
 	{
 	}
-	void count_down_and_wait()
+	void arrive_and_wait()
 	{
 		std::unique_lock< std::mutex > lock(m_mutex);
 		unsigned int gen = m_generation;
@@ -230,7 +220,7 @@ public:
 	{
 	}
 
-	void count_down_and_wait()
+	void arrive_and_wait()
 	{
 		int32_t old_generation = a_generation;
 
@@ -277,6 +267,15 @@ struct MurMur64Hash
 		h ^= h >> 33;
 
 		return h;
+	}
+};
+
+// **********************************************************************************
+struct hash_pair {
+	template <typename T, typename S>
+	size_t operator()(const pair<T, S>& x) const
+	{
+		return hash<T>{}(x.first) ^ hash<S>{}(x.second);
 	}
 };
 

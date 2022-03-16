@@ -2,10 +2,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 1.0
-// Date   : 2021-12-17
+// Version: 2.0
+// Date   : 2022-02-24
 // *******************************************************************************************
 
 #include "../core/agc_decompressor_lib.h"
@@ -120,10 +120,12 @@ int CAGCDecompressorLibrary::GetContigString(const string& sample_name, const st
 		det_sample_name = v_cand_samples.front();
 	}
 
-	if (!collection_desc.get_contig_desc(det_sample_name, contig_name, contig_desc))
+	string full_contig_name = contig_name;
+
+	if (!collection_desc.get_contig_desc(det_sample_name, full_contig_name, contig_desc))
 		return -1;
 
-	tuple<size_t, name_range_t, vector<segment_desc_t>> task(id++, name_range_t(contig_name, start, end), contig_desc);
+	tuple<size_t, name_range_t, vector<segment_desc_t>> task(id++, name_range_t(full_contig_name, start, end), contig_desc);
 	contig_t ctg;
 
 	decompress_contig(task, nullptr, ctg);
@@ -152,7 +154,9 @@ int64_t CAGCDecompressorLibrary::GetContigLength(const string& sample_name, cons
 		det_sample_name = v_cand_samples.front();
 	}
 
-	if (!collection_desc.get_contig_desc(det_sample_name, contig_name, contig_desc))
+	string full_contig_name = contig_name;
+
+	if (!collection_desc.get_contig_desc(det_sample_name, full_contig_name, contig_desc))
 		return -1;
 
 	int64_t len = 0;
@@ -261,6 +265,7 @@ bool CAGCDecompressorLibrary::decompress_contig(task_desc_t& contig_desc, ZSTD_D
 		decompress_segment(seg.group_id, seg.in_group_id, ctg, zstd_ctx);
 		if (seg.is_rev_comp)
 			reverse_complement(ctg);
+
 		v_segments_loc.emplace_back(ctg);
 
 		curr_pos += seg_len - kmer_length;
@@ -298,36 +303,6 @@ bool CAGCDecompressorLibrary::decompress_contig(task_desc_t& contig_desc, ZSTD_D
 }
 
 // *******************************************************************************************
-bool CAGCDecompressorLibrary::load_file_type_info()
-{
-	vector<uint8_t> v_data;
-
-	m_file_type_info.clear();
-
-	auto s_id = in_archive->GetStreamId("file_type_info");
-	if (s_id < 0)
-		return false;
-
-	uint64_t n_items;
-
-	if (!in_archive->GetPart(s_id, v_data, n_items))
-		return false;
-
-	auto p = v_data.begin();
-	string key, val;
-
-	for (size_t i = 0; i < n_items; ++i)
-	{
-		read(p, key);
-		read(p, val);
-
-		m_file_type_info.emplace(key, val);
-	}
-
-	return true;
-}
-
-// *******************************************************************************************
 bool CAGCDecompressorLibrary::Open(const string& _archive_fn, const bool _prefetch_archive)
 {
 	if (working_mode != working_mode_t::none)
@@ -336,12 +311,13 @@ bool CAGCDecompressorLibrary::Open(const string& _archive_fn, const bool _prefet
 	in_archive_name = _archive_fn;
 	prefetch_archive = _prefetch_archive;
 
-	if (!load_metadata(in_archive_name))
+	working_mode = working_mode_t::decompression;
+
+	if (!load_file_type_info(in_archive_name))
 		return false;
 
-	load_file_type_info();
-
-	working_mode = working_mode_t::decompression;
+	if (!load_metadata())
+		return false;
 
 	return true;
 }
@@ -358,7 +334,7 @@ bool CAGCDecompressorLibrary::close_decompression()
 // *******************************************************************************************
 bool CAGCDecompressorLibrary::decompress_segment(const uint32_t group_id, const uint32_t in_group_id, contig_t& ctg, ZSTD_DCtx* zstd_ctx)
 {
-	CSegment segment("seg-" + to_string(group_id), in_archive, nullptr, compression_params.pack_cardinality, compression_params.min_match_len, false);
+	CSegment segment("seg-" + to_string(group_id), in_archive, nullptr, compression_params.pack_cardinality, compression_params.min_match_len, false, archive_version);
 
 	if (group_id < no_raw_groups)
 		return segment.get_raw(in_group_id, ctg, zstd_ctx);

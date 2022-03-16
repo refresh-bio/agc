@@ -5,16 +5,16 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 1.0
-// Date   : 2021-12-17
+// Version: 2.0
+// Date   : 2022-02-24
 // *******************************************************************************************
 
 #include <string>
 #include <vector>
-#include <unordered_map>
-#include <unordered_set>
+//#include <unordered_map>
+//#include <unordered_set>
 #include <map>
 #include <chrono>
 #include <tuple>
@@ -64,6 +64,7 @@ protected:
 
 	string in_archive_name;
 	bool prefetch_archive = false;
+	uint32_t archive_version;
 
 	shared_ptr<CArchive> in_archive;															// internal mutexes
 	CCollection collection_desc;																// internal mutexes
@@ -73,6 +74,7 @@ protected:
 	compression_params_t compression_params;
 
 	const uint32_t no_raw_groups = 16;
+//	const uint32_t no_raw_groups = 1;
 
 	uint32_t verbosity;
 
@@ -110,7 +112,8 @@ protected:
 
 	// *******************************************************************************************
 	void join_threads(vector<thread> &v_threads);
-	bool load_metadata(const string& archive_name);
+	bool load_metadata();
+	bool load_file_type_info(const string& archive_name);
 
 	void reverse_complement(contig_t& contig);
 	void reverse_complement_copy(const contig_t& src_contig, contig_t& dest_contig);

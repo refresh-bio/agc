@@ -1,13 +1,13 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <LocalDebuggerCommandArguments>create -t24 -r -v2 -i fl3.txt -o hpp3.agc chm13.draft_v1.1.fasta </LocalDebuggerCommandArguments>
-    <LocalDebuggerWorkingDirectory>K:\HPP</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerCommandArguments>create -a -v1 -k27 -l17 -b150 -s1500 -i camp.txt0 -o camp.agc2g camp/SAMEA1010245.contigs.fa.gz</LocalDebuggerCommandArguments>
+    <LocalDebuggerWorkingDirectory>j:\661k</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LocalDebuggerCommandArguments>getset toy_ex.agc a</LocalDebuggerCommandArguments>
-    <LocalDebuggerWorkingDirectory>k:\hpp\toy</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerCommandArguments>append -o b.agc a.agc SAMEA1009554.contigs.fa.gz</LocalDebuggerCommandArguments>
+    <LocalDebuggerWorkingDirectory>j:\661k</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
 </Project>

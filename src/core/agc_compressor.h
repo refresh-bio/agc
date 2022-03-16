@@ -5,10 +5,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 1.0
-// Date   : 2021-12-17
+// Version: 2.0
+// Date   : 2022-02-24
 // *******************************************************************************************
 
 #include "../core/agc_basic.h"
@@ -228,7 +228,7 @@ public:
 				m_kmers[make_pair(x.kmer1, x.kmer2)] = group_id++;
 		}
 
-		uint32_t no_new = group_id - vl_seg_part.size();
+		uint32_t no_new = group_id - (uint32_t) vl_seg_part.size();
 
 		vl_seg_part.resize(group_id);
 		
@@ -339,8 +339,9 @@ class CAGCCompressor : public CAGCBasic
 		{}
 	};
 
-//	using my_barrier = CBarrier;
-	using my_barrier = CAtomicBarrier;
+	using my_barrier = CBarrier;
+//	using my_barrier = CAtomicBarrier;
+//	using my_barrier = barrier<>;
 
 	shared_mutex seg_map_mtx;
 	shared_mutex seg_vec_mtx;
@@ -352,8 +353,14 @@ class CAGCCompressor : public CAGCBasic
 
 	bool concatenated_genomes;
 	uint32_t segment_size;
+	bool adaptive_compression;
 
 	shared_ptr<CArchive> out_archive;															// internal mutexes
+
+	vector<uint64_t> v_candidate_kmers;
+	vector<uint64_t> v_duplicated_kmers;
+	uint64_t v_candidate_kmers_offset = 0;
+
 	hash_set_t hs_splitters{ ~0ull, 16ull, 0.5, equal_to<uint64_t>{}, MurMur64Hash{} };			// only reads after init - no need to lock
 
 	map<pair<uint64_t, uint64_t>, int32_t> map_segments;										// shared_mutex (seg_map_mtx)
@@ -371,21 +378,37 @@ class CAGCCompressor : public CAGCBasic
 	atomic<size_t> processed_bases;
 	atomic<uint64_t> a_part_id;
 
-	unique_ptr<CBoundedPQueue<tuple<string, string, contig_t>>> pq_contigs_desc;				// internal mutexes
+	vector<vector<uint64_t>> vv_splitters;
+
+	vector<tuple<string, string, contig_t>> v_raw_contigs;
+	mutex mtx_raw_contigs;
+
+	enum class contig_processing_stage_t {unknown, all_contigs, new_splitters, hard_contigs, registration};
+
+	using task_t = tuple<contig_processing_stage_t, string, string, contig_t>;
+	
+	shared_ptr<CBoundedPQueue<task_t>> pq_contigs_desc;											// internal mutexes
+	shared_ptr<CBoundedPQueue<task_t>> pq_contigs_desc_aux;										// internal mutexes
+	shared_ptr<CBoundedPQueue<task_t>> pq_contigs_desc_working;									// internal mutexes
+
 	unique_ptr<CBoundedQueue<tuple<string, string, contig_t>>> q_contigs_desc;					// internal mutexes
 	unique_ptr<CBoundedPQueue<contig_t>> pq_contigs_raw;										// internal mutexes
 	unique_ptr<CBoundedQueue<contig_t>> q_contigs_data;											// internal mutexes
 
 	bool compress_contig(string sample_name, string id, contig_t& contig, ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx);
-	bool compress_contig_rep(string sample_name, string id, contig_t& contig, ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx);
+	bool compress_contig_rep(contig_processing_stage_t contig_processing_stage, string sample_name, string id, contig_t& contig, 
+		ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx, uint32_t thread_id);
 	pair_segment_desc_t add_segment(const string &sample_name, const string &contig_name, uint32_t seg_part_no,
 		contig_t segment, CKmer kmer_front, CKmer kmer_back, ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx);
+	void register_segments();
+	void store_segments(ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx);
 
 	pair<pair<uint64_t, uint64_t>, bool> find_cand_segment_with_one_splitter(CKmer kmer, contig_t& segment_dir, contig_t& segment_rc, ZSTD_DCtx* zstd_dctx);
 	pair<uint64_t, uint32_t> find_cand_segment_with_missing_middle_splitter(CKmer kmer_front, CKmer kmer_back, contig_t& segment_dir, contig_t& segment_rc, ZSTD_DCtx* zstd_dctx);
 
 	contig_t get_part(const contig_t& contig, uint64_t pos, uint64_t len);
 	void preprocess_raw_contig(contig_t& ctg);
+	void find_new_splitters(contig_t& ctg, uint32_t thread_id);
 
 	// *******************************************************************************************
 	void append(vector<uint8_t>& data, uint32_t num)
@@ -423,9 +446,15 @@ class CAGCCompressor : public CAGCBasic
 	void start_splitter_finding_threads(vector<thread>& v_threads, const uint32_t n_t, const vector<uint64_t>::iterator v_begin, const vector<uint64_t>::iterator v_end, vector<vector<uint64_t>>& v_splitters);
 	void start_kmer_collecting_threads(vector<thread>& v_threads, const uint32_t n_t, vector<uint64_t>& v_kmers, const size_t extra_items);
 
-	void store_metadata();
+	void store_metadata(uint32_t no_threads);
 	void appending_init();
 	bool determine_splitters(const string& reference_file_name, const size_t segment_size, const uint32_t no_threads);
+	
+	void remove_non_singletons(vector<uint64_t>& vec, size_t virtual_begin);
+	void remove_non_singletons(vector<uint64_t>& vec, vector<uint64_t>& v_duplicated, size_t virtual_begin);
+
+	void enumerate_kmers(contig_t& ctg, vector<uint64_t> &vec);
+	void find_splitters_in_contig(contig_t& ctg, const vector<uint64_t>::iterator v_begin, const vector<uint64_t>::iterator v_end, vector<uint64_t>& v_splitters);
 
 	void store_file_type_info();
 
@@ -434,7 +463,7 @@ public:
 	~CAGCCompressor();
 
 	bool Create(const string& _file_name, const uint32_t _pack_cardinality, const uint32_t _kmer_length, const string& reference_file_name, const uint32_t _segment_size,
-		const uint32_t _min_match_len, const bool _concatenated_genomes, const uint32_t _verbosity, const uint32_t _no_threads);
+		const uint32_t _min_match_len, const bool _concatenated_genomes, const bool _adaptive_compression, const uint32_t _verbosity, const uint32_t _no_threads);
 	bool Append(const string& _in_archive_fn, const string& _out_archive_fn, const uint32_t _verbosity, const bool _prefetch_archive, const bool _concatenated_genomes);
 
 	void AddCmdLine(const string& cmd_line);

@@ -5,10 +5,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 1.0
-// Date   : 2021-12-17
+// Version: 2.0
+// Date   : 2022-02-24
 // *******************************************************************************************
 
 #include <string>
@@ -19,8 +19,10 @@ using namespace std;
 
 #define USE_SPARSE_HT
 
-class CLZDiff
+// *******************************************************************************************
+class CLZDiffBase
 {
+protected:
 	const uint32_t empty_key32 = ~0u;
 	const uint32_t empty_key16 = (uint16_t) ~0u;
 	const double max_load_factor = 0.7;
@@ -53,7 +55,8 @@ class CLZDiff
 	uint32_t get_Nrun_len(const uint8_t* s, const uint32_t max_len) const;
 
 	void encode_literal(const uint8_t c, contig_t& encoded);
-	void encode_match(const uint32_t ref_pos, const uint32_t len, const uint32_t pred_pos, contig_t& encoded);
+	void encode_literal_diff(const uint8_t c, const uint8_t r, contig_t& encoded);
+//	void encode_match(const uint32_t ref_pos, const uint32_t len, const uint32_t pred_pos, contig_t& encoded);
 	void encode_Nrun(const uint32_t len, contig_t& encoded);
 
 	uint32_t coding_cost_match(const uint32_t ref_pos, const uint32_t len, const uint32_t pred_pos) const;
@@ -75,7 +78,6 @@ class CLZDiff
 	bool is_literal(const contig_t::const_iterator& p) const;
 	bool is_Nrun(const contig_t::const_iterator& p) const;
 	void decode_literal(contig_t::const_iterator& p, uint8_t &c);
-	void decode_match(contig_t::const_iterator& p, uint32_t &ref_pos, uint32_t &len, uint32_t &pred_pos);
 	void decode_Nrun(contig_t::const_iterator& p, uint32_t& len);
 
 	bool find_best_match16(uint32_t ht_pos, const uint8_t *s, const uint32_t max_len, const uint32_t no_prev_literals,
@@ -89,15 +91,51 @@ class CLZDiff
 	void prepare_index();
 
 public:
-	CLZDiff(const uint32_t _min_match_len = 18);
-	~CLZDiff();
+	CLZDiffBase(const uint32_t _min_match_len = 18);
+	virtual ~CLZDiffBase();
 
 	bool SetMinMatchLen(const uint32_t _min_match_len = 18);
 	void Prepare(const contig_t& _reference);
-	void Encode(const contig_t& text, contig_t&encoded);
+
+	virtual void Encode(const contig_t& text, contig_t&encoded) = 0;
+	virtual void Decode(const contig_t& reference, const contig_t& encoded, contig_t& decoded) = 0;
+
 	void GetReference(contig_t& s);
-	void Decode(const contig_t &reference, const contig_t& encoded, contig_t& decoded);
 	void GetCodingCostVector(const contig_t& text, vector<uint32_t> &v_costs, const bool prefix_costs);
+};
+
+// *******************************************************************************************
+class CLZDiff_V1 : public CLZDiffBase
+{
+	void encode_match(const uint32_t ref_pos, const uint32_t len, const uint32_t pred_pos, contig_t& encoded);
+	void decode_match(contig_t::const_iterator& p, uint32_t& ref_pos, uint32_t& len, uint32_t& pred_pos);
+
+
+public:
+	CLZDiff_V1(const uint32_t _min_match_len = 18) : CLZDiffBase(_min_match_len)
+	{}
+
+	virtual ~CLZDiff_V1() {};
+
+	virtual void Encode(const contig_t& text, contig_t& encoded);
+	virtual void Decode(const contig_t& reference, const contig_t& encoded, contig_t& decoded);
+};
+
+// *******************************************************************************************
+class CLZDiff_V2 : public CLZDiffBase
+{
+	void encode_match(const uint32_t ref_pos, const uint32_t len, const uint32_t pred_pos, contig_t& encoded);
+	void decode_match(contig_t::const_iterator& p, uint32_t& ref_pos, uint32_t& len, uint32_t& pred_pos);
+
+
+public:
+	CLZDiff_V2(const uint32_t _min_match_len = 18) : CLZDiffBase(_min_match_len)
+	{}
+
+	virtual ~CLZDiff_V2() {};
+
+	virtual void Encode(const contig_t& text, contig_t& encoded);
+	virtual void Decode(const contig_t& reference, const contig_t& encoded, contig_t& decoded);
 };
 
 // EOF

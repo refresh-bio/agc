@@ -2,10 +2,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 1.0
-// Date   : 2021-12-17
+// Version: 2.0
+// Date   : 2022-02-24
 // *******************************************************************************************
 
 #include "../core/segment.h"
@@ -40,7 +40,7 @@ uint32_t CSegment::add(const contig_t& s, bool buffered, ZSTD_CCtx* zstd_cctx, Z
 
     if (no_seqs == 0)
     {
-        lz_diff.Prepare(s);
+        lz_diff->Prepare(s);
 
         store_in_archive(s, buffered, zstd_cctx);
 
@@ -56,7 +56,17 @@ uint32_t CSegment::add(const contig_t& s, bool buffered, ZSTD_CCtx* zstd_cctx, Z
 
         contig_t delta;
 
-        lz_diff.Encode(s, delta);
+        lz_diff->Encode(s, delta);
+
+#ifdef IMPROVED_LZ_ENCODING
+        if (delta.empty())       // same sequence as reference
+            return 0;
+#endif
+
+        auto p = find(v_lzp.begin(), v_lzp.end(), delta);
+        if (p != v_lzp.end())
+            return no_seqs - distance(p, v_lzp.end());
+
         v_lzp.push_back(delta);
 
         seq_size += s.size() + 1;
@@ -81,7 +91,7 @@ uint64_t CSegment::estimate(const contig_t& s, ZSTD_DCtx* zstd_dctx)
     else
     {
         contig_t delta;
-        lz_diff.Encode(s, delta);
+        lz_diff->Encode(s, delta);
         return delta.size();
     }
 }
@@ -97,7 +107,7 @@ void CSegment::get_coding_cost(const contig_t& s, vector<uint32_t>& v_costs, con
     if (ref_size == 0)
         return;
     else
-        lz_diff.GetCodingCostVector(s, v_costs, prefix_costs);
+        lz_diff->GetCodingCostVector(s, v_costs, prefix_costs);
 }
 
 // *******************************************************************************************
@@ -244,7 +254,7 @@ bool CSegment::get(const uint32_t id_seq, contig_t& ctg, ZSTD_DCtx* zstd_ctx)
     
     // LZ decode delta-encoded contig
     ctg.clear();
-    lz_diff.Decode(ref_seq, delta_seq, ctg);
+    lz_diff->Decode(ref_seq, delta_seq, ctg);
 
     return true;
 }
@@ -344,13 +354,17 @@ void CSegment::unpack(ZSTD_DCtx* zstd_ctx)
             auto output_size = ZSTD_decompressDCtx(zstd_ctx, v_tuples.data(), v_tuples.size(), packed_ref_seq.data(), packed_ref_seq.size() - 1u);
 
             v_tuples.resize(output_size);
-            tuples2bytes(v_tuples, ref_seq);
+
+            if (packed_ref_seq.back() == 1)      // marker (tuples to bytes conversion needed)
+                tuples2bytes(v_tuples, ref_seq);
+            else
+                ref_seq.swap(v_tuples);
         }
 
         packed_ref_seq.clear();
         packed_ref_seq.shrink_to_fit();
 
-        lz_diff.Prepare(ref_seq);
+        lz_diff->Prepare(ref_seq);
         ref_size = ref_seq.size() + 1;
     }
 
@@ -373,18 +387,15 @@ void CSegment::unpack(ZSTD_DCtx* zstd_ctx)
 
         // Retrive the requested delta-coded contig
         uint32_t b_pos = 0;
-//        int cnt = 0;
 
         if (contigs_in_pack > 1)
         {
             for (uint32_t i = 0; i < delta_seq.size(); ++i)
-            {
                 if (delta_seq[i] == contig_separator)
                 {
                     v_lzp.emplace_back(delta_seq.begin() + b_pos, delta_seq.begin() + i);
                     b_pos = i + 1;
                 }
-            }
         }
         else
             v_lzp.emplace_back(delta_seq.begin(), delta_seq.begin() + (delta_seq.size() - 1));

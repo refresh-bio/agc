@@ -5,10 +5,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 1.0
-// Date   : 2021-12-17
+// Version: 2.0
+// Date   : 2022-02-24
 // *******************************************************************************************
 
 #include <regex>
@@ -68,7 +68,6 @@ protected:
 	bool decompress_contig(task_desc_t& task, ZSTD_DCtx *zstd_ctx, contig_t& ctg);
 
 	bool close_decompression();
-	bool load_file_type_info();
 
 public:
 	CAGCDecompressorLibrary(bool _is_app_mode);

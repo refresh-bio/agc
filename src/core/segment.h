@@ -5,10 +5,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 1.0
-// Date   : 2021-12-17
+// Version: 2.0
+// Date   : 2022-02-24
 // *******************************************************************************************
 
 #include <vector>
@@ -50,7 +50,7 @@ class CSegment
     uint64_t raw_delta_size = 0;
     bool ref_transferred = false;
 
-    CLZDiff lz_diff;
+    unique_ptr<CLZDiffBase> lz_diff;
 
     uint32_t no_seqs;
     vector<contig_t> v_lzp;
@@ -306,7 +306,7 @@ class CSegment
 public:
     // *******************************************************************************************
     CSegment(const string &_name, shared_ptr<CArchive> _in_archive, shared_ptr<CArchive> _out_archive,
-        const uint32_t _contigs_in_pack, const uint32_t _min_match_len, const bool _concatenated_genomes) :
+        const uint32_t _contigs_in_pack, const uint32_t _min_match_len, const bool _concatenated_genomes, uint32_t _archive_version) :
         name(_name), in_archive(_in_archive), out_archive(_out_archive), 
         contigs_in_pack(_contigs_in_pack), min_match_len(_min_match_len), concatenated_genomes(_concatenated_genomes),
         no_seqs(0), ref_size(0), seq_size(0), packed_size(0)
@@ -315,7 +315,12 @@ public:
         stream_id_delta = -1;
         internal_state = internal_state_t::none;
 
-        lz_diff.SetMinMatchLen(min_match_len);
+        if (_archive_version < 2000)
+            lz_diff = make_unique<CLZDiff_V1>();
+        else
+            lz_diff = make_unique<CLZDiff_V2>();
+
+        lz_diff->SetMinMatchLen(min_match_len);
     };
 
     ~CSegment()

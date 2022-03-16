@@ -2,10 +2,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 1.0
-// Date   : 2021-12-17
+// Version: 2.0
+// Date   : 2022-02-24
 // *******************************************************************************************
 
 #include "application.h"
@@ -96,10 +96,11 @@ void CApplication::usage_create() const
 	cerr << AGC_VERSION << endl;
 	cerr << "Usage: agc create [options] <ref.fa> [<in1.fa> ...] > <out.agc>\n";
     cerr << "Options:\n";
-    cerr << "   -b <int>       - batch size " << execution_params.pack_cardinality.info() << "\n";
+	cerr << "   -a             - adaptive mode (default: " << bool2string(execution_params.adaptive_compression) << ")\n";
+	cerr << "   -b <int>       - batch size " << execution_params.pack_cardinality.info() << "\n";
     cerr << "   -c             - concatenated genomes in a single file (default: " << bool2string(execution_params.concatenated_genomes) << ")\n";
     cerr << "   -d             - do not store cmd-line (default: " << bool2string(execution_params.store_cmd_line) << ")\n";
-	cerr << "   -f             - use fast mode (default: " << bool2string(!execution_params.reproducibility_mode) << ")\n";
+//	cerr << "   -f             - use fast mode (default: " << bool2string(!execution_params.reproducibility_mode) << ")\n";
 	cerr << "   -i <file_name> - file with FASTA file names (alterantive to listing file names explicitely in command line)\n";
     cerr << "   -k <int>       - k-mer length" << execution_params.k.info() << "\n";
     cerr << "   -l <int>       - min. match length " << execution_params.min_match_length.info() << "\n";
@@ -115,7 +116,7 @@ bool CApplication::parse_params_create(const int argc, const char** argv)
 	ketopt_t o = KETOPT_INIT;
 	int i, c;
 
-	while ((c = ketopt(&o, argc, argv, 1, "t:b:s:k:l:cdfi:o:v:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "t:b:s:k:l:acdfi:o:v:", 0)) >= 0) {
 		if (c == 't') {
 			execution_params.no_threads.assign(atoi(o.arg));
 		} else if (c == 'b') {
@@ -126,10 +127,12 @@ bool CApplication::parse_params_create(const int argc, const char** argv)
 			execution_params.k.assign(atoi(o.arg));
 		} else if (c == 'l') {
 			execution_params.min_match_length.assign(atoi(o.arg));
+		} else if (c == 'a') {
+			execution_params.adaptive_compression = true;
 		} else if (c == 'c') {
 			execution_params.concatenated_genomes = true;
 		} else if (c == 'f') {
-			execution_params.reproducibility_mode = false;
+//			execution_params.reproducibility_mode = false;
 		} else if (c == 'd') {
 			execution_params.store_cmd_line = false;
 		} else if (c == 'i') {
@@ -164,7 +167,7 @@ void CApplication::usage_append() const
     cerr << "Options:\n";
     cerr << "   -c             - concatenated genomes in a single file (default: " << bool2string(execution_params.concatenated_genomes) << ")\n";
     cerr << "   -d             - do not store cmd-line (default: " << bool2string(execution_params.store_cmd_line) << ")\n";
-	cerr << "   -f             - use fast mode (default: " << bool2string(!execution_params.reproducibility_mode) << ")\n";
+//	cerr << "   -f             - use fast mode (default: " << bool2string(!execution_params.reproducibility_mode) << ")\n";
 	cerr << "   -i <file_name> - file with FASTA file names (alterantive to listing file names explicitely in command line)\n";
     cerr << "   -o <file_name> - output to file (default: output is sent to stdout)\n";
 	cerr << "   -t <int>       - no of threads " << execution_params.no_threads.info() << "\n";
@@ -183,7 +186,7 @@ bool CApplication::parse_params_append(const int argc, const char** argv)
 		} else if (c == 'c') {
 			execution_params.concatenated_genomes = true;
 		} else if (c == 'f') {
-			execution_params.reproducibility_mode = false;
+//			execution_params.reproducibility_mode = false;
 		} else if (c == 'd') {
 			execution_params.store_cmd_line = false;
 		} else if (c == 'i') {
