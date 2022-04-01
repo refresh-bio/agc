@@ -5,7 +5,7 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-02-24
+// Date   : 2022-03-16
 // *******************************************************************************************
 
 #include "../core/genome_io.h"
@@ -115,8 +115,8 @@ bool CGenomeIO::Close()
 		}
 		else if (out)
 		{
-			fflush(stdout);
-			if(!stdout)
+			fflush(out);
+			if(!use_stdout)
 				fclose(out);
 			out = nullptr;
 		}
@@ -347,22 +347,38 @@ bool CGenomeIO::save_contig(const string& id, const contig_t& contig, const uint
 void CGenomeIO::save_contig_imp(const contig_t& contig, const uint32_t line_length)
 {
 	size_t to_save = contig.size();
-	uint8_t* line = new uint8_t[line_length + 1u];
-	line[line_length] = '\n';
 	auto p = contig.data();
 
-	for (; to_save > line_length; to_save -= line_length)
+	if (is_gzipped)
 	{
-		is_gzipped ? gzwrite(gz_out, line, line_length+1) : fwrite(line, 1, line_length+1, out);
-		p += line_length;
+		for (; to_save > line_length; to_save -= line_length)
+		{
+			gzwrite(gz_out, p, line_length);
+			gzputc(gz_out, '\n');
+
+			p += line_length;
+		}
+
+		for (uint32_t i = 0; i < to_save; ++i)
+			gzputc(gz_out, *p++);
+
+		gzputc(gz_out, '\n');
 	}
+	else
+	{
+		for (; to_save > line_length; to_save -= line_length)
+		{
+			fwrite(p, 1, line_length, out);
+			putc('\n', out);
 
-	for (uint32_t i = 0; i < to_save; ++i)
-		is_gzipped ? gzputc(gz_out, *p++) : fputc(*p++, out);
+			p += line_length;
+		}
 
-	is_gzipped ? gzputc(gz_out, '\n') : putc('\n', out);
+		for (uint32_t i = 0; i < to_save; ++i)
+			fputc(*p++, out);
 
-	delete[] line;
+		putc('\n', out);
+	}
 }
 
 // *******************************************************************************************

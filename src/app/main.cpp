@@ -5,7 +5,7 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-02-24
+// Date   : 2022-03-16
 // *******************************************************************************************
 
 #include <iostream>
@@ -39,6 +39,8 @@ int CApplication::Run(const int argc, const char** argv)
         create();
     else if (execution_params.mode == "append")
         append();
+    else if (execution_params.mode == "getcol")
+        getcol();
     else if (execution_params.mode == "getset")
         getset();
     else if (execution_params.mode == "getctg")
@@ -134,6 +136,24 @@ bool CApplication::append()
         agc_c.AddCmdLine(cmd_line);
 
     r &= agc_c.Close(execution_params.no_threads());
+
+    return r;
+}
+
+// *******************************************************************************************
+bool CApplication::getcol()
+{
+    CAGCDecompressor agc_d(true);
+
+    bool r = agc_d.Open(execution_params.in_archive_name, execution_params.prefetch);
+        
+    if (r)
+        r &= agc_d.GetCollectionFiles(
+            execution_params.output_name,
+            execution_params.line_length(), 
+            execution_params.no_threads());
+        
+    r &= agc_d.Close();
 
     return r;
 }

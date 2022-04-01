@@ -5,7 +5,7 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-02-24
+// Date   : 2022-03-16
 // *******************************************************************************************
 
 #include "application.h"
@@ -32,6 +32,8 @@ bool CApplication::parse_params(const int argc, const char** argv)
             usage_create();
         else if (execution_params.mode == "append")
             usage_append();
+        else if (execution_params.mode == "getcol")
+            usage_getcol();
         else if (execution_params.mode == "getset")
             usage_getset();
         else if (execution_params.mode == "getctg")
@@ -54,6 +56,8 @@ bool CApplication::parse_params(const int argc, const char** argv)
             return parse_params_create(argc - 1, argv + 1);
         else if (execution_params.mode == "append")
             return parse_params_append(argc - 1, argv + 1);
+        else if (execution_params.mode == "getcol")
+            return parse_params_getcol(argc - 1, argv + 1);
         else if (execution_params.mode == "getset")
             return parse_params_getset(argc - 1, argv + 1);
         else if (execution_params.mode == "getctg")
@@ -82,6 +86,7 @@ void CApplication::usage() const
     cerr << "Command:\n";
     cerr << "   create   - create archive from FASTA files\n";
     cerr << "   append   - add FASTA files to existing archive\n";
+    cerr << "   getcol   - extract all samples from archive\n";
     cerr << "   getset   - extract sample from archive\n";
     cerr << "   getctg   - extract contig from archive\n";
     cerr << "   listset  - list sample names in archive\n";
@@ -209,6 +214,52 @@ bool CApplication::parse_params_append(const int argc, const char** argv)
 
 	for (i = o.ind + 1; i < argc; ++i)
 		execution_params.input_names.emplace_back(argv[i]);
+
+	return true;
+}
+
+// *******************************************************************************************
+void CApplication::usage_getcol() const
+{
+	cerr << AGC_VERSION << endl;
+	cerr << "Usage: agc getcol [options] <in.agc> > <out.fa>\n";
+    cerr << "Options:\n";
+    cerr << "   -l <int>         - line length " << execution_params.line_length.info() << "\n";
+    cerr << "   -o <output_path> - output to files at path (default: output is sent to stdout)\n";
+    cerr << "   -t <int>         - no of threads " << execution_params.no_threads.info() << "\n";
+    cerr << "   -v <int>         - verbosity level " << execution_params.verbosity.info() << "\n";
+}
+
+// *******************************************************************************************
+bool CApplication::parse_params_getcol(const int argc, const char** argv)
+{
+	ketopt_t o = KETOPT_INIT;
+	int c;
+
+	execution_params.prefetch = true;
+
+	while ((c = ketopt(&o, argc, argv, 1, "t:l:o:v:", 0)) >= 0) {
+		if (c == 't') {
+			execution_params.no_threads.assign(atoi(o.arg));
+		}
+		else if (c == 'l') {
+			execution_params.line_length.assign(atoi(o.arg));
+		}
+		else if (c == 'o') {
+			execution_params.output_name = o.arg;
+			execution_params.use_stdout = false;
+		}
+		else if (c == 'v') {
+			execution_params.verbosity.assign(atoi(o.arg));
+		}
+	}
+
+	if (o.ind >= argc) {
+		cerr << "No archive name\n";
+		return false;
+	}
+
+	execution_params.in_archive_name = argv[o.ind];
 
 	return true;
 }

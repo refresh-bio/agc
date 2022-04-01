@@ -80,8 +80,9 @@ For detailed instructions on how to set up Bioconda, please refer to the [Biocon
 * 1.1 (14 Jan 2022)
   * Small bugfixes.
 * 2.0 (20 Mar 2022)
-  * Added adaptive mode (especially for bacterial data).
-  * New archive format: AGC 1.x tool cannot read AGC 2 archives, but AGC 2.x tool can operate on AGC 1.x and AGC 2.x archives.
+  * Optional adaptive mode (especially for bacterial data).
+  * New mode: decompression of whole collection.
+  * New archive format (a bit more compact): AGC 1.x tool cannot read AGC 2 archives, but AGC 2.x tool can operate on AGC 1.x and AGC 2.x archives.
 
 
 ## Usage
@@ -91,6 +92,7 @@ For detailed instructions on how to set up Bioconda, please refer to the [Biocon
 Command:
 * `create`   - create archive from FASTA files
 * `append`   - add FASTA files to existing archive
+* `getcol`   - extract all samples from archive
 * `getset`   - extract sample from archive
 * `getctg`   - extract contig from archive
 * `listset`  - list sample names in archive
@@ -111,7 +113,7 @@ Options:
 * `-l <int>`       - min. match length (default: 20; min: 15; max: 32)
 * `-o <file_name>` - output to file (default: output is sent to stdout)
 * `-s <int>`       - expected segment size (default: 60000; min: 100; max: 1000000)
-* `-t <int>`       - no of threads (default: 24; min: 1; max: 48)
+* `-t <int>`       - no. of threads (default: no. logical cores / 2; min: 1; max: no. logical. cores)
 * `-v <int>`       - verbosity level (default: 0; min: 0; max: 2)
 
 #### Hints
@@ -138,12 +140,24 @@ Options:
 * `-d`             - do not store cmd-line (default: false)
 * `-i <file_name>` - file with FASTA file names (alterantive to listing file names explicitely in command line)
 * `-o <file_name>` - output to file (default: output is sent to stdout)
-* `-t <int>`       - no of threads (default: 24; min: 1; max: 48)
+* `-t <int>`       - no. of threads (default: no. logical cores / 2; min: 1; max: no. logical. cores)
 * `-v <int>`       - verbosity level (default: 0; min: 0; max: 2)
 
 #### Hints
 FASTA files can be optionally gzipped.
 
+### Decompress whole collection
+`agc getcol [options] <in.agc> > <out.fa>`
+
+Options:\n";
+* `-l <int>`         - line length (default: 80; min: 40; max: 2000000000)
+* `-o <output_path>` - output to files at path (default: output is sent to stdout)
+* `-t <int>`         - no. of threads (default: no. logical cores / 2; min: 1; max: no. logical. cores)
+* `-v <int>`         - verbosity level (default: 0; min: 0; max: 2)
+
+#### Hints
+If output path is specified then it must be an existing directory.
+Each sample will be stored in a separate file (the files in the directory will be overwritten if their names are the same as sample name).
 
 ### Extract genomes from the archive
 
@@ -152,7 +166,7 @@ FASTA files can be optionally gzipped.
 Options:
 * `-l <int>`       - line length (default: 80; min: 40; max: 2000000000)
 * `-o <file_name>` - output to file (default: output is sent to stdout)
-* `-t <int>`       - no of threads (default: 24; min: 1; max: 48)
+* `-t <int>`       - no. of threads (default: no. logical cores / 2; min: 1; max: no. logical. cores)
 * `-v <int>`       - verbosity level (default: 0; min: 0; max: 2)
   
 #### Hints
@@ -168,7 +182,7 @@ If output file name ends with `.gz' the output file will be gzipped.
 Options:
 * `-l <int>`       - line length (default: 80; min: 40; max: 2000000000)
 * `-o <file_name>` - output to file (default: output is sent to stdout)
-* `-t <int>`       - no of threads (default: 24; min: 1; max: 48)
+* `-t <int>`       - no. of threads (default: no. logical cores / 2; min: 1; max: no. logical. cores)
 * `-p`             - disable file prefetching (useful for short queries)
 * `-v <int>`       - verbosity level (default: 0; min: 0; max: 2)
 

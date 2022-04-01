@@ -8,7 +8,7 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-02-24
+// Date   : 2022-03-16
 // *******************************************************************************************
 
 #include <map>
@@ -212,7 +212,7 @@ class CCollection
 		p += x;
 	}
 
-	string extract_contig_name(const string &s);
+	string extract_contig_name(const string& s);
 	bool is_equal_sample_contig(const pair<string, string>& x, const pair<string, string>& y);
 
 	vector<segment_desc_t> & add_segment_basic(const string& sample_name, const string& contig_name, const uint32_t group_id, const uint32_t in_group_id, const bool is_rev_comp, const uint32_t raw_length);

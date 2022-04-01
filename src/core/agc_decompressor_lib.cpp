@@ -5,7 +5,7 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-02-24
+// Date   : 2022-03-16
 // *******************************************************************************************
 
 #include "../core/agc_decompressor_lib.h"
@@ -167,10 +167,10 @@ int64_t CAGCDecompressorLibrary::GetContigLength(const string& sample_name, cons
 }
 
 // *******************************************************************************************
-void CAGCDecompressorLibrary::start_decompressing_threads(vector<thread>& v_threads, const uint32_t n_t)
+void CAGCDecompressorLibrary::start_decompressing_threads(vector<thread>& v_threads, const uint32_t n_t, bool converted_to_alpha)
 {
 	for (uint32_t i = 0; i < n_t; ++i)
-		v_threads.emplace_back([&] {
+		v_threads.emplace_back([&, converted_to_alpha] {
 
 		auto zstd_ctx = ZSTD_createDCtx();
 
@@ -187,6 +187,20 @@ void CAGCDecompressorLibrary::start_decompressing_threads(vector<thread>& v_thre
 			if (!decompress_contig(contig_desc, zstd_ctx, ctg))
 				continue;
 
+/*			auto ctg0 = ctg;
+			bool was_converted = false;
+*/
+			if (converted_to_alpha)
+			{
+				convert_to_alpha(ctg);
+//				was_converted = true;
+			}
+
+/*			if (ctg[0] < 20)
+			{
+				cerr << "Error: " << (int)ctg[0] << " " << (int) ctg0[0] << "    " << (int) was_converted << "  " << (int) converted_to_alpha << endl;
+			}
+*/
 			name_range_t contig_name_range = get<1>(contig_desc);
 
 			pq_contigs_to_save->Emplace(priority, make_pair(contig_name_range.str(), move(ctg)));
@@ -196,6 +210,36 @@ void CAGCDecompressorLibrary::start_decompressing_threads(vector<thread>& v_thre
 
 		ZSTD_freeDCtx(zstd_ctx);
 		});
+}
+
+// *******************************************************************************************
+void CAGCDecompressorLibrary::convert_to_alpha(contig_t& ctg)
+{
+	size_t size = ctg.size();
+	size_t i = size % 8;
+
+	switch (i)
+	{
+	case 7: ctg[6] = cnv_num[ctg[6]];
+	case 6: ctg[5] = cnv_num[ctg[5]];
+	case 5: ctg[4] = cnv_num[ctg[4]];
+	case 4: ctg[3] = cnv_num[ctg[3]];
+	case 3: ctg[2] = cnv_num[ctg[2]];
+	case 2: ctg[1] = cnv_num[ctg[1]];
+	case 1: ctg[0] = cnv_num[ctg[0]];
+	}
+
+	for (; i < size; i += 8)
+	{
+		ctg[i] = cnv_num[ctg[i]];
+		ctg[i+1] = cnv_num[ctg[i+1]];
+		ctg[i+2] = cnv_num[ctg[i+2]];
+		ctg[i+3] = cnv_num[ctg[i+3]];
+		ctg[i+4] = cnv_num[ctg[i+4]];
+		ctg[i+5] = cnv_num[ctg[i+5]];
+		ctg[i+6] = cnv_num[ctg[i+6]];
+		ctg[i+7] = cnv_num[ctg[i+7]];
+	}
 }
 
 // *******************************************************************************************

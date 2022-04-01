@@ -8,7 +8,7 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-02-24
+// Date   : 2022-03-16
 // *******************************************************************************************
 
 #include <iostream>
@@ -89,6 +89,7 @@ class CApplication
 	void usage() const;
 	void usage_create() const;
 	void usage_append() const;
+	void usage_getcol() const;
 	void usage_getset() const;
 	void usage_getctg() const;
 	void usage_listset() const;
@@ -101,6 +102,7 @@ class CApplication
 
 	bool parse_params_create(const int argc, const char** argv);
 	bool parse_params_append(const int argc, const char** argv);
+	bool parse_params_getcol(const int argc, const char** argv);
 	bool parse_params_getset(const int argc, const char** argv);
 	bool parse_params_getctg(const int argc, const char** argv);
 	bool parse_params_listset(const int argc, const char** argv);
@@ -109,6 +111,7 @@ class CApplication
 
 	bool create();
 	bool append();
+	bool getcol();
 	bool getset();
 	bool getctg();
 	bool listset();

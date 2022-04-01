@@ -8,7 +8,7 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-02-24
+// Date   : 2022-03-16
 // *******************************************************************************************
 
 #include <regex>
@@ -61,8 +61,10 @@ protected:
 	unique_ptr<CBoundedQueue<tuple<size_t, name_range_t, vector<segment_desc_t>>>> q_contig_tasks;
 	unique_ptr<CPriorityQueue<pair<string, contig_t>>> pq_contigs_to_save;
 
+	void convert_to_alpha(contig_t& ctg);
+
 	bool analyze_contig_query(const string& query, string& sample, name_range_t& name_range);
-	void start_decompressing_threads(vector<thread>& v_threads, const uint32_t n_t);
+	void start_decompressing_threads(vector<thread>& v_threads, const uint32_t n_t, bool converted_to_alpha);
 	bool decompress_segment(const uint32_t group_id, const uint32_t in_group_id, contig_t& ctg, ZSTD_DCtx* zstd_ctx);
 
 	bool decompress_contig(task_desc_t& task, ZSTD_DCtx *zstd_ctx, contig_t& ctg);
