@@ -8,7 +8,7 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-03-16
+// Date   : 2022-04-05
 // *******************************************************************************************
 
 #include "../core/agc_decompressor_lib.h"
@@ -24,6 +24,10 @@ public:
 	bool GetCollectionFiles(const string& _path, const uint32_t _line_length, const uint32_t no_threads);
 	bool GetSampleFile(const string& _file_name, const vector<string>& sample_names, const uint32_t _line_length, const uint32_t no_threads);
 	bool GetContigFile(const string& _file_name, const vector<string>& contig_names, const uint32_t _line_length, const uint32_t no_threads);
+
+	bool GetSampleSequences(const string& sample_name, vector<pair<string, vector<uint8_t>>> &v_contig_seq, const uint32_t no_threads);
+
+	bool AssignArchive(const CAGCBasic &agc_basic);
 };
 
 // EOF

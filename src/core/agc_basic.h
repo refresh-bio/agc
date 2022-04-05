@@ -8,13 +8,11 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-03-16
+// Date   : 2022-04-05
 // *******************************************************************************************
 
 #include <string>
 #include <vector>
-//#include <unordered_map>
-//#include <unordered_set>
 #include <map>
 #include <chrono>
 #include <tuple>
@@ -32,6 +30,8 @@ using namespace std;
 // Basic compression class
 class CAGCBasic
 {
+	friend class CAGCDecompressor;
+
 protected:
 	enum class working_mode_t { none, compression, decompression, appending };
 
@@ -53,14 +53,16 @@ protected:
 		uint32_t kmer_length;
 		uint32_t min_match_len;
 		uint32_t pack_cardinality;
+		uint32_t segment_size;
 	};
 
 	working_mode_t working_mode;
 	bool is_app_mode;
 
 	uint32_t kmer_length;
-	uint32_t pack_cardinality;
 	uint32_t min_match_len;
+	uint32_t pack_cardinality;
+	uint32_t segment_size;
 
 	string in_archive_name;
 	bool prefetch_archive = false;
@@ -74,7 +76,6 @@ protected:
 	compression_params_t compression_params;
 
 	const uint32_t no_raw_groups = 16;
-//	const uint32_t no_raw_groups = 1;
 
 	uint32_t verbosity;
 

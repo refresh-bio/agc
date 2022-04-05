@@ -5,7 +5,7 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-03-16
+// Date   : 2022-04-05
 // *******************************************************************************************
 
 #include "../core/agc_decompressor_lib.h"
@@ -187,20 +187,9 @@ void CAGCDecompressorLibrary::start_decompressing_threads(vector<thread>& v_thre
 			if (!decompress_contig(contig_desc, zstd_ctx, ctg))
 				continue;
 
-/*			auto ctg0 = ctg;
-			bool was_converted = false;
-*/
 			if (converted_to_alpha)
-			{
 				convert_to_alpha(ctg);
-//				was_converted = true;
-			}
 
-/*			if (ctg[0] < 20)
-			{
-				cerr << "Error: " << (int)ctg[0] << " " << (int) ctg0[0] << "    " << (int) was_converted << "  " << (int) converted_to_alpha << endl;
-			}
-*/
 			name_range_t contig_name_range = get<1>(contig_desc);
 
 			pq_contigs_to_save->Emplace(priority, make_pair(contig_name_range.str(), move(ctg)));

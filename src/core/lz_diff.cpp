@@ -5,7 +5,7 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-03-16
+// Date   : 2022-04-05
 // *******************************************************************************************
 
 #include "../core/lz_diff.h"
@@ -762,9 +762,6 @@ void CLZDiff_V1::Decode(const contig_t& reference, const contig_t& encoded, cont
 void CLZDiff_V2::encode_match(const uint32_t ref_pos, const uint32_t len, const uint32_t pred_pos, contig_t& encoded)
 {
 	int dif_pos = (int)ref_pos - (int)pred_pos;
-
-/*	if (!encoded.empty() && encoded.back() >= '0' && encoded.back() <= '9')
-		encoded.emplace_back('.');*/
 
 	append_int(encoded, dif_pos);
 	if (len != ~0u)

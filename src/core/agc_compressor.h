@@ -8,7 +8,7 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-03-16
+// Date   : 2022-04-05
 // *******************************************************************************************
 
 #include "../core/agc_basic.h"
@@ -352,7 +352,6 @@ class CAGCCompressor : public CAGCBasic
 	vector<string> v_file_names;
 
 	bool concatenated_genomes;
-	uint32_t segment_size;
 	bool adaptive_compression;
 
 	shared_ptr<CArchive> out_archive;															// internal mutexes
@@ -449,7 +448,8 @@ class CAGCCompressor : public CAGCBasic
 	void store_metadata(uint32_t no_threads);
 	void appending_init();
 	bool determine_splitters(const string& reference_file_name, const size_t segment_size, const uint32_t no_threads);
-	
+	bool count_kmers(vector<pair<string, vector<uint8_t>>>& v_contig_data, const uint32_t no_threads);
+
 	void remove_non_singletons(vector<uint64_t>& vec, size_t virtual_begin);
 	void remove_non_singletons(vector<uint64_t>& vec, vector<uint64_t>& v_duplicated, size_t virtual_begin);
 
@@ -458,13 +458,16 @@ class CAGCCompressor : public CAGCBasic
 
 	void store_file_type_info();
 
+	void build_candidate_kmers_from_archive(const uint32_t n_t);
+
 public:
 	CAGCCompressor();
 	~CAGCCompressor();
 
 	bool Create(const string& _file_name, const uint32_t _pack_cardinality, const uint32_t _kmer_length, const string& reference_file_name, const uint32_t _segment_size,
 		const uint32_t _min_match_len, const bool _concatenated_genomes, const bool _adaptive_compression, const uint32_t _verbosity, const uint32_t _no_threads);
-	bool Append(const string& _in_archive_fn, const string& _out_archive_fn, const uint32_t _verbosity, const bool _prefetch_archive, const bool _concatenated_genomes);
+	bool Append(const string& _in_archive_fn, const string& _out_archive_fn, const uint32_t _verbosity, const bool _prefetch_archive, const bool _concatenated_genomes, const bool _adaptive_compression,
+		const uint32_t no_threads);
 
 	void AddCmdLine(const string& cmd_line);
 

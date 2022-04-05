@@ -8,7 +8,7 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-03-16
+// Date   : 2022-04-05
 // *******************************************************************************************
 
 #include <map>
@@ -22,7 +22,6 @@ using namespace std;
 //   * The queue can report whether it is in wainitng for new data state or there will be no new data
 template<typename T> class CBoundedQueue
 {
-	//	typedef queue<T, deque<T>> queue_t;
 	typedef list<pair<T, size_t>> queue_t;
 
 	queue_t q;

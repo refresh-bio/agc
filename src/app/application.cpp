@@ -5,7 +5,7 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-03-16
+// Date   : 2022-04-05
 // *******************************************************************************************
 
 #include "application.h"
@@ -170,7 +170,8 @@ void CApplication::usage_append() const
 	cerr << AGC_VERSION << endl;
 	cerr << "Usage: agc append [options] <in.agc> [<in1.fa> ...] > <out.agc>\n";
     cerr << "Options:\n";
-    cerr << "   -c             - concatenated genomes in a single file (default: " << bool2string(execution_params.concatenated_genomes) << ")\n";
+	cerr << "   -a             - adaptive mode (default: " << bool2string(execution_params.adaptive_compression) << ")\n";
+	cerr << "   -c             - concatenated genomes in a single file (default: " << bool2string(execution_params.concatenated_genomes) << ")\n";
     cerr << "   -d             - do not store cmd-line (default: " << bool2string(execution_params.store_cmd_line) << ")\n";
 //	cerr << "   -f             - use fast mode (default: " << bool2string(!execution_params.reproducibility_mode) << ")\n";
 	cerr << "   -i <file_name> - file with FASTA file names (alterantive to listing file names explicitely in command line)\n";
@@ -185,7 +186,7 @@ bool CApplication::parse_params_append(const int argc, const char** argv)
 	ketopt_t o = KETOPT_INIT;
 	int i, c;
 
-	while ((c = ketopt(&o, argc, argv, 1, "t:cdfi:o:v:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "t:acdfi:o:v:", 0)) >= 0) {
 		if (c == 't') {
 			execution_params.no_threads.assign(atoi(o.arg));
 		} else if (c == 'c') {
@@ -194,7 +195,11 @@ bool CApplication::parse_params_append(const int argc, const char** argv)
 //			execution_params.reproducibility_mode = false;
 		} else if (c == 'd') {
 			execution_params.store_cmd_line = false;
-		} else if (c == 'i') {
+		}
+		else if (c == 'a') {
+			execution_params.adaptive_compression = true;
+		}
+		else if (c == 'i') {
 			if (!load_file_names(o.arg, execution_params.input_names))
 				return false;
 		} else if (c == 'o') {

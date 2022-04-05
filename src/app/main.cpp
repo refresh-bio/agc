@@ -5,7 +5,7 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-03-16
+// Date   : 2022-04-05
 // *******************************************************************************************
 
 #include <iostream>
@@ -83,7 +83,10 @@ bool CApplication::create()
         execution_params.no_threads());
 
     if (!r)
+    {
+        cerr << "Cannot create archive " << execution_params.out_archive_name << endl;
         return false;
+    }
 
     if (execution_params.verbosity() > 0)
         cerr << "Start of compression\n";
@@ -114,7 +117,14 @@ bool CApplication::append()
 {
     CAGCCompressor agc_c;
 
-    bool r = agc_c.Append(execution_params.in_archive_name, execution_params.out_archive_name, execution_params.verbosity(), true, execution_params.concatenated_genomes);
+    bool r = agc_c.Append(execution_params.in_archive_name, execution_params.out_archive_name, execution_params.verbosity(), true, execution_params.concatenated_genomes, execution_params.adaptive_compression,
+        execution_params.no_threads());
+
+    if (!r)
+    {
+        cerr << "Cannot open archive " << execution_params.in_archive_name << " or create archive " << execution_params.out_archive_name << endl;
+        return false;
+    }
 
     vector<pair<string, string>> v_sample_file_names;
 
@@ -147,11 +157,16 @@ bool CApplication::getcol()
 
     bool r = agc_d.Open(execution_params.in_archive_name, execution_params.prefetch);
         
-    if (r)
-        r &= agc_d.GetCollectionFiles(
-            execution_params.output_name,
-            execution_params.line_length(), 
-            execution_params.no_threads());
+    if (!r)
+    {
+        cerr << "Cannot open archive " << execution_params.in_archive_name << endl;
+        return false;
+    }
+
+    r &= agc_d.GetCollectionFiles(
+        execution_params.output_name,
+        execution_params.line_length(), 
+        execution_params.no_threads());
         
     r &= agc_d.Close();
 
@@ -164,13 +179,18 @@ bool CApplication::getset()
     CAGCDecompressor agc_d(true);
 
     bool r = agc_d.Open(execution_params.in_archive_name, execution_params.prefetch);
-        
-    if (r)
-        r &= agc_d.GetSampleFile(
-            execution_params.output_name,
-            execution_params.sample_names, 
-            execution_params.line_length(), 
-            execution_params.no_threads());
+
+    if (!r)
+    {
+        cerr << "Cannot open archive " << execution_params.in_archive_name << endl;
+        return false;
+    }
+
+    r &= agc_d.GetSampleFile(
+        execution_params.output_name,
+        execution_params.sample_names, 
+        execution_params.line_length(), 
+        execution_params.no_threads());
         
     r &= agc_d.Close();
 
@@ -184,12 +204,17 @@ bool CApplication::getctg()
 
     bool r = agc_d.Open(execution_params.in_archive_name, execution_params.prefetch);
 
-    if (r)
-        r &= agc_d.GetContigFile(
-            execution_params.output_name, 
-            execution_params.contig_names, 
-            execution_params.line_length(), 
-            execution_params.no_threads());
+    if (!r)
+    {
+        cerr << "Cannot open archive " << execution_params.in_archive_name << endl;
+        return false;
+    }
+
+    r &= agc_d.GetContigFile(
+        execution_params.output_name, 
+        execution_params.contig_names, 
+        execution_params.line_length(), 
+        execution_params.no_threads());
 
     r &= agc_d.Close();
 
@@ -203,12 +228,24 @@ bool CApplication::listset()
 
     bool r = agc_d.Open(execution_params.in_archive_name, execution_params.prefetch);
 
+    if (!r)
+    {
+        cerr << "Cannot open archive " << execution_params.in_archive_name << endl;
+        return false;
+    }
+
     vector<string> v_samples;
 
     agc_d.ListSamples(v_samples);
 
     COutFile outf;
-    outf.Open(execution_params.output_name);
+    r &= outf.Open(execution_params.output_name);
+
+    if (!r)
+    {
+        cerr << "Cannot open output file " << execution_params.output_name << endl;
+        return false;
+    }
 
     for (auto& s : v_samples)
         outf.Write(s + "\n");
@@ -227,8 +264,20 @@ bool CApplication::listctg()
 
     bool r = agc_d.Open(execution_params.in_archive_name, execution_params.prefetch);
 
+    if (!r)
+    {
+        cerr << "Cannot open archive " << execution_params.in_archive_name << endl;
+        return false;
+    }
+
     COutFile outf;
-    outf.Open(execution_params.output_name);
+    r &= outf.Open(execution_params.output_name);
+
+    if (!r)
+    {
+        cerr << "Cannot open output file " << execution_params.output_name << endl;
+        return false;
+    }
 
     for (auto& sn : execution_params.sample_names)
     {
@@ -255,7 +304,10 @@ bool CApplication::info()
     CAGCDecompressor agc_d(true);
 
     if (!agc_d.Open(execution_params.in_archive_name, execution_params.prefetch))
+    {
+        cerr << "Cannot open archive " << execution_params.in_archive_name << endl;
         return false;
+    }
 
     vector<string> v_sample_names;
     vector<pair<string, string>> cmd_lines;

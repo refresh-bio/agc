@@ -5,7 +5,7 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-03-16
+// Date   : 2022-04-05
 // *******************************************************************************************
 
 #include <iostream>
@@ -21,6 +21,7 @@ CAGCBasic::CAGCBasic()
     compression_params.kmer_length = 0;
     compression_params.min_match_len = 0;
     compression_params.pack_cardinality = 1;
+    compression_params.segment_size = 0;
 
     pack_cardinality = 1;
 
@@ -189,9 +190,15 @@ bool CAGCBasic::load_metadata()
     read(p, compression_params.min_match_len);
     read(p, compression_params.pack_cardinality);
 
+    if (archive_version >= 2000)
+        read(p, compression_params.segment_size);
+    else
+        compression_params.segment_size = 0;
+
     kmer_length = compression_params.kmer_length;
     pack_cardinality = compression_params.pack_cardinality;
     min_match_len = compression_params.min_match_len;
+    segment_size = compression_params.segment_size;
 
     return true;
 }

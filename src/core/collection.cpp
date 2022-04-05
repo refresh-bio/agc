@@ -5,7 +5,7 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-03-16
+// Date   : 2022-04-05
 // *******************************************************************************************
 
 #include <ctime>
@@ -117,6 +117,19 @@ void CCollection::add_segment_placed(const string& sample_name, const string& co
 		vec.resize(place + 1, segment_desc_t(555555555, 555555555, true, 555555555));
 
 	vec[place] = segment_desc_t(group_id, in_group_id, is_rev_comp, raw_length);
+}
+
+// *******************************************************************************************
+bool CCollection::get_reference_name(string& reference_name)
+{
+	lock_guard<mutex> lck(mtx);
+
+	if (v_sample_name.empty())
+		return false;
+
+	reference_name = v_sample_name.front();
+
+	return true;
 }
 
 // *******************************************************************************************
@@ -359,7 +372,6 @@ void CCollection::decompress_sample_details(uint32_t i_sample)
 				uint32_t no_seg = p_contig_info->no_seg;
 				p_ctg->second.resize(no_seg);
 			}
-
 	}
 
 	for (auto p_sam = v_p_sample.begin(); p_sam != v_p_sample.end(); ++p_sam)
@@ -483,9 +495,6 @@ void CCollection::serialize_v2(vector<uint8_t>& data_main, vector<vector<uint8_t
 
 			for (auto& seg : contig.second)
 			{
-//				uint32_t e_group_id = (uint32_t)zigzag_encode((int32_t)seg.group_id - prev_group_id);
-//				uint32_t e_in_group_id = (uint32_t)zigzag_encode((int32_t)seg.in_group_id - prev_in_group_id);
-//				uint32_t e_raw_length = (uint32_t)zigzag_encode((int32_t)seg.raw_length - prev_raw_length);
 				uint32_t e_group_id = (uint32_t)zigzag_encode(seg.group_id, prev_group_id);
 				uint32_t e_in_group_id = (uint32_t)zigzag_encode(seg.in_group_id, prev_in_group_id);
 				uint32_t e_raw_length = (uint32_t)zigzag_encode(seg.raw_length, prev_raw_length);
@@ -690,7 +699,6 @@ void CCollection::deserialize_contig_details_group_id(uint8_t*& p, vector<segmen
 	for (uint32_t k = 0; k < contig_segments.size(); ++k)
 	{
 		read(p, e_group_id);
-//		uint32_t c_group_id = (uint32_t)((int32_t)prev_group_id + zigzag_decode(e_group_id));
 		uint32_t c_group_id = (uint32_t) zigzag_decode(e_group_id, prev_group_id);
 		contig_segments[k].group_id = c_group_id;
 		prev_group_id = c_group_id;
@@ -706,7 +714,6 @@ void CCollection::deserialize_contig_details_in_group_id(uint8_t*& p, vector<seg
 	for (uint32_t k = 0; k < contig_segments.size(); ++k)
 	{
 		read(p, e_in_group_id);
-//		uint32_t c_in_group_id = (uint32_t)((int32_t)prev_in_group_id + zigzag_decode(e_in_group_id));
 		uint32_t c_in_group_id = (uint32_t)zigzag_decode(e_in_group_id, prev_in_group_id);
 		contig_segments[k].in_group_id = c_in_group_id;
 		prev_in_group_id = c_in_group_id;
@@ -722,7 +729,6 @@ void CCollection::deserialize_contig_details_raw_length(uint8_t*& p, vector<segm
 	for (uint32_t k = 0; k < contig_segments.size(); ++k)
 	{
 		read(p, e_raw_length);
-//		uint32_t c_raw_length = (uint32_t)((int32_t)prev_raw_length + zigzag_decode(e_raw_length));
 		uint32_t c_raw_length = (uint32_t) zigzag_decode(e_raw_length, prev_raw_length);
 		contig_segments[k].raw_length = c_raw_length;
 		prev_raw_length = c_raw_length;
@@ -748,8 +754,6 @@ bool CCollection::deserialize_v2_details(vector<uint8_t>& zstd_data_details, siz
 
 	if (deserialize_details)
 		decompress_sample_details((v_zstd_batches.size() - 1) * details_batch_size);
-
-//	v_zstd_batches.emplace_back(zstd_data_details, raw_size);
 
 	return true;
 }

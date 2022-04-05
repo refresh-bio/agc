@@ -28,13 +28,17 @@ cd agc && make
 ./agc create -i fn.txt -o col.agc ref.fa                            # output file name is specified as a parameter
 ./agc create -i fn.txt -o col.agc -k 29 -l 22 -b 100 -t 16 ref.fa   # same as above, but manual selection 
                                                                     # of compression parameters
-./agc create -i fn.txt -f -o col.agc ref.fa                         # compress in fast mode (read description below)
 ./agc create -c -o col.agc ref.fa samples.fa                        # compress samples stored in a single file
                                                                     # (reference must be given separately)
 
 # Add new genomes to the collection
 ./agc append in.agc in3.fa in4.fa > out.agc                         # add 2 genomes to the compressed archive
 ./agc append -i fn.txt in.agc -o out.agc                            # add genomes (fn.txt contains file names)
+./agc append -a -i fn.txt in.agc -o out.agc                         # add genomes (adaptive mode)
+
+# Extract all genomes from the compressed archive
+./agc getcol in.agc > out.fa                                        # extract all samples
+./agc getcol -o out_path/ in.agc                                    # extract all samples and store them in separate files
 
 # Extract a genome or genomes from the compressed archive
 ./agc getset in.agc in1 > out.fa                                    # extract sample in1 from the archive
@@ -79,7 +83,7 @@ For detailed instructions on how to set up Bioconda, please refer to the [Biocon
   * First public release.
 * 1.1 (14 Jan 2022)
   * Small bugfixes.
-* 2.0 (20 Mar 2022)
+* 2.0 (5 Apr 2022)
   * Optional adaptive mode (especially for bacterial data).
   * New mode: decompression of whole collection.
   * New archive format (a bit more compact): AGC 1.x tool cannot read AGC 2 archives, but AGC 2.x tool can operate on AGC 1.x and AGC 2.x archives.

@@ -5,13 +5,16 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-03-16
+// Date   : 2022-04-05
 // *******************************************************************************************
 
 #include <numeric>
 #include <filesystem>
 #include "../core/agc_compressor.h"
+#include "../core/agc_decompressor.h"
 #include "../../libs/raduls.h"
+
+using namespace std;
 
 // *******************************************************************************************
 CAGCCompressor::CAGCCompressor() : CAGCBasic()
@@ -145,12 +148,15 @@ void CAGCCompressor::store_metadata(uint32_t no_threads)
     for(uint32_t i = 0; i < no_raw_groups; ++i)
         total_size_raw += out_archive->GetStreamPackedSize(out_archive->GetStreamId("seg-" + to_string(i) + "-delta"));
 
-    compression_params_t compression_params{ kmer_length, min_match_len, pack_cardinality };
+    compression_params_t compression_params{ kmer_length, min_match_len, pack_cardinality, segment_size };
 
     vector<uint8_t> v_params;
     append(v_params, compression_params.kmer_length);
     append(v_params, compression_params.min_match_len);
     append(v_params, compression_params.pack_cardinality);
+
+    if(archive_version >= 2000)
+        append(v_params, compression_params.segment_size);
 
     auto compression_params_id = out_archive->RegisterStream("params");
     out_archive->AddPart(compression_params_id, v_params);
@@ -307,8 +313,6 @@ bool CAGCCompressor::determine_splitters(const string& reference_file_name, cons
         return false;
     }
 
-    CKmer kmer(kmer_length, kmer_mode_t::canonical);
-
     string id;
     contig_t contig;
 
@@ -411,6 +415,64 @@ bool CAGCCompressor::determine_splitters(const string& reference_file_name, cons
 
     if (verbosity > 1 && is_app_mode)
         cerr << "No. of splitters: " << hs_splitters.size() << endl;
+
+    return true;
+}
+
+// *******************************************************************************************
+bool CAGCCompressor::count_kmers(vector<pair<string, vector<uint8_t>>>& v_contig_data, const uint32_t no_threads)
+{
+    size_t tot_contig_len = 0;
+
+    for (auto& cd : v_contig_data)
+        tot_contig_len += cd.second.size();
+
+    v_candidate_kmers.resize(tot_contig_len + raduls::ALIGNMENT / 8 + contig_part_size * (no_threads + 1) + 1, ~0ull);
+
+    auto alignment_shift = ((uint64_t)v_candidate_kmers.data()) % raduls::ALIGNMENT;
+    //    auto extra_items = raduls::ALIGNMENT / 8 - alignment_shift / 8;
+    v_candidate_kmers_offset = raduls::ALIGNMENT / 8 - alignment_shift / 8;
+
+    if (verbosity > 0 && is_app_mode)
+        cerr << "Gathering reference k-mers\n";
+
+    q_contigs_data = make_unique<CBoundedQueue<contig_t>>(1, contig_part_size * no_threads * 3);
+    vector<thread> v_threads;
+
+    start_kmer_collecting_threads(v_threads, no_threads, v_candidate_kmers, v_candidate_kmers_offset);
+
+    for (auto& cd : v_contig_data)
+    {
+        preprocess_raw_contig(cd.second);
+
+        size_t c_size = cd.second.size();
+        size_t start_pos;
+
+        for (start_pos = 0; start_pos + (kmer_length - 1) < c_size; )
+        {
+            contig_t part = get_part(cd.second, start_pos, contig_part_size);
+
+            start_pos += part.size() - (kmer_length - 1);
+            q_contigs_data->Emplace(move(part), part.size());
+        }
+    }
+
+    q_contigs_data->MarkCompleted();
+
+    join_threads(v_threads);
+
+    q_contigs_data.release();
+
+    // Sort k-mers
+    if (verbosity > 0 && is_app_mode)
+        cerr << "Determination of splitters\n";
+
+    raduls::RadixSortMSD((uint8_t*)(v_candidate_kmers.data() + v_candidate_kmers_offset), nullptr, v_candidate_kmers.size() - v_candidate_kmers_offset, 8, 8, no_threads);
+
+    remove_non_singletons(v_candidate_kmers, v_duplicated_kmers, v_candidate_kmers_offset);
+
+    if (verbosity > 1 && is_app_mode)
+        cerr << "No. of singletons: " << v_candidate_kmers.size() - v_candidate_kmers_offset << endl;
 
     return true;
 }
@@ -588,6 +650,27 @@ void CAGCCompressor::find_splitters_in_contig(contig_t& ctg, const vector<uint64
             v_splitters.emplace_back(*p);
             break;
         }
+}
+
+// *******************************************************************************************
+void CAGCCompressor::build_candidate_kmers_from_archive(const uint32_t n_t)
+{
+    CAGCDecompressor agc_decompressor(false);
+
+    agc_decompressor.AssignArchive(*this);
+
+    string ref_sample_name;
+
+    if (!collection_desc.get_reference_name(ref_sample_name))
+        return;
+
+    vector<pair<string, vector<uint8_t>>> v_contig_data;
+
+    agc_decompressor.GetSampleSequences(ref_sample_name, v_contig_data, n_t);
+
+    count_kmers(v_contig_data, n_t);
+
+    vv_splitters.resize(n_t);
 }
 
 // *******************************************************************************************
@@ -1734,8 +1817,6 @@ bool CAGCCompressor::Create(const string& _file_name, const uint32_t _pack_cardi
     segment_size = _segment_size;
     verbosity = _verbosity;
 
-    working_mode = working_mode_t::compression;
-
     if (!determine_splitters(reference_file_name, _segment_size, no_threads))
     {
         working_mode = working_mode_t::none;
@@ -1749,9 +1830,11 @@ bool CAGCCompressor::Create(const string& _file_name, const uint32_t _pack_cardi
         return false;
     }
     
+    working_mode = working_mode_t::compression;
+
     no_samples_in_archive = 0;
 
-    map_segments[make_pair(~0ull, ~0ull)] = 0;
+    map_segments[std::make_pair(~0ull, ~0ull)] = 0;
 
     v_segments.resize(no_raw_groups);
 
@@ -1769,7 +1852,8 @@ bool CAGCCompressor::Create(const string& _file_name, const uint32_t _pack_cardi
 }
 
 // *******************************************************************************************
-bool CAGCCompressor::Append(const string& _in_archive_fn, const string& _out_archive_fn, const uint32_t _verbosity, const bool _prefetch_archive, const bool _concatenated_genomes)
+bool CAGCCompressor::Append(const string& _in_archive_fn, const string& _out_archive_fn, const uint32_t _verbosity, const bool _prefetch_archive, const bool _concatenated_genomes, const bool _adaptive_compression,
+    const uint32_t no_threads)
 {
     if (working_mode != working_mode_t::none)
         return false;
@@ -1778,10 +1862,10 @@ bool CAGCCompressor::Append(const string& _in_archive_fn, const string& _out_arc
     out_archive_name = _out_archive_fn;
     prefetch_archive = _prefetch_archive;
     concatenated_genomes = _concatenated_genomes;
+    adaptive_compression = _adaptive_compression;
+
     min_match_len = compression_params.min_match_len;
     verbosity = _verbosity;
-
-    working_mode = working_mode_t::appending;
 
     if (!load_file_type_info(in_archive_name))
         return false;
@@ -1790,12 +1874,18 @@ bool CAGCCompressor::Append(const string& _in_archive_fn, const string& _out_arc
         return false;
 
     out_archive = make_shared<CArchive>(false, 32 << 20);
+
     if (!out_archive->Open(out_archive_name))
         return false;
 
     no_samples_in_archive = collection_desc.get_no_samples();
 
+    if (adaptive_compression)
+        build_candidate_kmers_from_archive(no_threads);
+
     appending_init();
+
+    working_mode = working_mode_t::appending;
 
     return true;
 }

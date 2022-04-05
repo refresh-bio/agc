@@ -8,7 +8,7 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-03-16
+// Date   : 2022-04-05
 // *******************************************************************************************
 
 #include <vector>
@@ -225,8 +225,6 @@ class CSegment
 
         stream_id_ref = out_archive->RegisterStream(stream_name);
 
-//        uint32_t best_len = 0;
-//        uint32_t best_cnt = 0;
         double best_frac = 0.0;
         double frac_limit = 0.5;
 
@@ -247,8 +245,6 @@ class CSegment
 
             if (frac > best_frac)
             {
-//                best_len = i;
-//                best_cnt = cnt;
                 best_frac = frac;
 
                 if (best_frac >= frac_limit)

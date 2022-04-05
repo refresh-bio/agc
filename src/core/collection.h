@@ -8,7 +8,7 @@
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
 // Version: 2.0
-// Date   : 2022-03-16
+// Date   : 2022-04-05
 // *******************************************************************************************
 
 #include <map>
@@ -231,10 +231,58 @@ public:
 			ZSTD_freeDCtx(zstd_dctx);
 	};
 
+	CCollection(const CCollection& x)
+	{
+//		lock_guard<mutex> lck(x.mtx);
+
+		if (x.zstd_dctx)
+			zstd_dctx = ZSTD_createDCtx();
+		else
+			zstd_dctx = nullptr;
+
+		col = x.col;
+		contig_ids_no_seg = x.contig_ids_no_seg;
+		mm_contig2sample = x.mm_contig2sample;
+		sample_ids = x.sample_ids;
+		v_sample_name = x.v_sample_name;
+		v_contig_info = x.v_contig_info;
+		maps_built = x.maps_built;
+
+		v_zstd_batches = x.v_zstd_batches;
+
+		cmd_lines = x.cmd_lines;
+	}
+
+	CCollection& operator=(const CCollection& x)
+	{
+		if (this == &x)
+			return *this;
+
+		if (x.zstd_dctx)
+			zstd_dctx = ZSTD_createDCtx();
+		else
+			zstd_dctx = nullptr;
+
+		col = x.col;
+		contig_ids_no_seg = x.contig_ids_no_seg;
+		mm_contig2sample = x.mm_contig2sample;
+		sample_ids = x.sample_ids;
+		v_sample_name = x.v_sample_name;
+		v_contig_info = x.v_contig_info;
+		maps_built = x.maps_built;
+
+		v_zstd_batches = x.v_zstd_batches;
+
+		cmd_lines = x.cmd_lines;
+
+		return *this;
+	}
+
 	bool register_sample_contig(const string& sample_name, const string& contig_name);
 	void add_segment_append(const string& sample_name, const string& contig_name, const uint32_t group_id, const uint32_t in_group_id, const bool is_rev_comp, const uint32_t raw_length);
 	void add_segment_placed(const string& sample_name, const string& contig_name, const uint32_t place, const uint32_t group_id, const uint32_t in_group_id, const bool is_rev_comp, const uint32_t raw_length);
 
+	bool get_reference_name(string &reference_name);
 	bool get_samples_list(vector<string>& v_samples);
 	bool get_contig_list_in_sample(const string& sample_name, vector<string>& v_contig_names);
 	bool get_samples_info(map<string, vector<string>>& v_samples);
