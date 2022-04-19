@@ -261,4 +261,6 @@ For more options see Usage section.
 Archives of 94 haplotype human assemblies <a href="https://github.com/human-pangenomics/HPP_Year1_Data_Freeze_v1.0">released by HPRC</a> in 2021 as well as 619,750 complete SARC-Cov-2 genomes <a href="https://www.ncbi.nlm.nih.gov/datasets/coronavirus/genomes/">published by NCBI</a> can be downloaded from <a href="https://zenodo.org/record/5826274">Zenodo</a>.
   
 ## Citing
-...
+S. Deorowicz, A. Danek, H. Li,
+AGC: Compact representation of assembled genomes.
+Preprint: https://doi.org/10.1101/2022.04.07.487441 (2022).
