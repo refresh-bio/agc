@@ -31,7 +31,7 @@ ifeq ($(uname_S),Linux)
 	LIB_ZSTD=libzstd.a
 	LIB_ZLIB=cloudflare-zlib/libz.a
 	LIB_RADULS=libraduls.a
-	AR_OPT=rcs -o
+	AR_OPT=rcs -o  -fPIC -Wall -shared -O3
 	PY_AGC_API_CFLAGS = -fPIC -Wall -shared -std=c++14 -O3
 endif
 
@@ -84,24 +84,43 @@ agc: $(AGC_APP_DIR)/main.o \
 	$(AGC_LIBS_DIR)/mimalloc/$(LIB_ALLOC) \
 	$(CLINK)
 
+#libagc: $(AGC_CXX_DIR)/lib-cxx.o \
+#	$(AGC_CORE_DIR)/agc_basic.o \
+#	$(AGC_CORE_DIR)/agc_decompressor_lib.o \
+#	$(AGC_CORE_DIR)/archive.o \
+#	$(AGC_CORE_DIR)/collection.o \
+#	$(AGC_CORE_DIR)/genome_io.o \
+#	$(AGC_CORE_DIR)/lz_diff.o \
+#	$(AGC_CORE_DIR)/segment.o
+#	$(AR) $(AR_OPT)  $(AGC_ROOT_DIR)/$@.a  \
+#	$(AGC_CXX_DIR)/lib-cxx.o \
+#	$(AGC_CORE_DIR)/agc_basic.o \
+#	$(AGC_CORE_DIR)/agc_decompressor_lib.o \
+#	$(AGC_CORE_DIR)/archive.o \
+#	$(AGC_CORE_DIR)/collection.o \
+#	$(AGC_CORE_DIR)/genome_io.o \
+#	$(AGC_CORE_DIR)/lz_diff.o \
+#	$(AGC_CORE_DIR)/segment.o \
+#	$(AGC_LIBS_DIR)/$(LIB_ZSTD)
+
 libagc: $(AGC_CXX_DIR)/lib-cxx.o \
 	$(AGC_CORE_DIR)/agc_basic.o \
 	$(AGC_CORE_DIR)/agc_decompressor_lib.o \
 	$(AGC_CORE_DIR)/archive.o \
 	$(AGC_CORE_DIR)/collection.o \
-	$(AGC_CORE_DIR)/genome_io.o \
 	$(AGC_CORE_DIR)/lz_diff.o \
 	$(AGC_CORE_DIR)/segment.o
-	$(AR) $(AR_OPT)  $(AGC_ROOT_DIR)/$@.a  \
+	$(CC) $(PY_CFLAGS)  \
 	$(AGC_CXX_DIR)/lib-cxx.o \
 	$(AGC_CORE_DIR)/agc_basic.o \
 	$(AGC_CORE_DIR)/agc_decompressor_lib.o \
 	$(AGC_CORE_DIR)/archive.o \
 	$(AGC_CORE_DIR)/collection.o \
-	$(AGC_CORE_DIR)/genome_io.o \
 	$(AGC_CORE_DIR)/lz_diff.o \
 	$(AGC_CORE_DIR)/segment.o \
-	$(AGC_LIBS_DIR)/$(LIB_ZSTD)
+	$(AGC_LIBS_DIR)/$(LIB_ZSTD) \
+	-I $(AGC_MAIN_DIR) \
+	-o $(AGC_ROOT_DIR)/$@.so 
 
 .PHONY:py_agc_api
 py_agc_api: $(PY_AGC_API_DIR)/py_agc_api.cpp $(AGC_CXX_DIR)/lib-cxx.o \
