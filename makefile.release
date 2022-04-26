@@ -99,8 +99,7 @@ libagc: $(AGC_CXX_DIR)/lib-cxx.o \
 	$(AGC_CORE_DIR)/collection.o \
 	$(AGC_CORE_DIR)/genome_io.o \
 	$(AGC_CORE_DIR)/lz_diff.o \
-	$(AGC_CORE_DIR)/segment.o \
-	$(AGC_LIBS_DIR)/$(LIB_ZSTD)
+	$(AGC_CORE_DIR)/segment.o 
 
 .PHONY:py_agc_api
 py_agc_api: $(PY_AGC_API_DIR)/py_agc_api.cpp $(AGC_CXX_DIR)/lib-cxx.o \
