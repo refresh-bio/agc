@@ -31,7 +31,7 @@ ifeq ($(uname_S),Linux)
 	LIB_ZSTD=libzstd.a
 	LIB_ZLIB=cloudflare-zlib/libz.a
 	LIB_RADULS=libraduls.a
-	AR_OPT=rcs -o  -fPIC -Wall -shared -O3
+	AR_OPT=rcs
 	PY_AGC_API_CFLAGS = -fPIC -Wall -shared -std=c++14 -O3
 endif
 
