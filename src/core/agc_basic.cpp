@@ -4,8 +4,8 @@
 //
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.0
-// Date   : 2022-04-05
+// Version: 2.1
+// Date   : 2022-05-06
 // *******************************************************************************************
 
 #include <iostream>
@@ -172,7 +172,8 @@ bool CAGCBasic::load_metadata()
         }
 
         while (in_archive->GetPart(desc_details_sid_v2, v_desc_zstd, tmp))
-            collection_desc.deserialize_v2_details(v_desc_zstd, tmp, working_mode == working_mode_t::appending);
+            collection_desc.deserialize_v2_details(v_desc_zstd, tmp, 
+                working_mode == working_mode_t::appending || working_mode == working_mode_t::pre_appending);
     }
 
     vector<uint8_t> v_params;

@@ -4,8 +4,8 @@
 //
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.0
-// Date   : 2022-04-05
+// Version: 2.1
+// Date   : 2022-05-06
 // *******************************************************************************************
 
 #include <numeric>
@@ -1870,8 +1870,11 @@ bool CAGCCompressor::Append(const string& _in_archive_fn, const string& _out_arc
     if (!load_file_type_info(in_archive_name))
         return false;
 
+    working_mode = working_mode_t::pre_appending;
+
     if (!load_metadata())
         return false;
+    working_mode = working_mode_t::appending;
 
     out_archive = make_shared<CArchive>(false, 32 << 20);
 

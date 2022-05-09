@@ -79,15 +79,16 @@ For detailed instructions on how to set up Bioconda, please refer to the [Biocon
 
 
 ## Version history
-* 1.0 (23 Dec 2021)
-  * First public release.
-* 1.1 (14 Jan 2022)
-  * Small bugfixes.
+* 2.1 (9 May 2022)
+  * Bugfix in append mode. (In version 2.0, running append could produce improper archive.)
 * 2.0 (5 Apr 2022)
   * Optional adaptive mode (especially for bacterial data).
   * New mode: decompression of whole collection.
   * New archive format (a bit more compact): AGC 1.x tool cannot read AGC 2 archives, but AGC 2.x tool can operate on AGC 1.x and AGC 2.x archives.
-
+* 1.1 (14 Jan 2022)
+  * Small bugfixes.
+* 1.0 (23 Dec 2021)
+  * First public release.
 
 ## Usage
 

@@ -6,7 +6,7 @@
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LocalDebuggerCommandArguments>append a.fa t.agc</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>append -o toy1.agc -d toy0.agc a.fa</LocalDebuggerCommandArguments>
     <LocalDebuggerWorkingDirectory>k:\hpp\toy</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>

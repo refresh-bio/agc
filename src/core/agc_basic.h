@@ -7,8 +7,8 @@
 //
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.0
-// Date   : 2022-04-05
+// Version: 2.1
+// Date   : 2022-05-06
 // *******************************************************************************************
 
 #include <string>
@@ -33,7 +33,7 @@ class CAGCBasic
 	friend class CAGCDecompressor;
 
 protected:
-	enum class working_mode_t { none, compression, decompression, appending };
+	enum class working_mode_t { none, compression, decompression, appending, pre_appending };
 
 	const uint8_t cnv_num[128] = {
 		//		0    1	   2    3    4    5    6    7    8    9    10   11   12  13   14    15
