@@ -1,0 +1,243 @@
+name: GitHub Actions CI
+
+on:
+  push:
+      paths-ignore:
+      - '**.md'
+jobs:
+  linux-remote:
+    name: Linux test (remote)
+    runs-on: ubuntu-latest
+ 
+    
+    env: 
+      EXE: ../agc
+      
+    steps:
+    - uses: actions/checkout@v2
+    - name: make agc
+      run: make agc
+   
+#CREATE
+
+    - name: toy example create
+      run: |
+        cd toy_ex
+        $EXE create -o toy.agc ref.fa a.fa b.fa c.fa
+        
+    - name: toy example listset
+      run: |
+        cd toy_ex
+        printf "a\nb\nc\nref\n" > list
+        $EXE listset toy.agc > list_dec
+        cmp list list_dec 
+        
+    - name: toy example listctg
+      run: |
+        cd toy_ex
+        printf "a\n   chr1a\n   chr3a\n" > list
+        $EXE listctg toy.agc a > list_dec
+        cmp list list_dec 
+    
+    - name: toy example getset
+      run: |
+        cd toy_ex
+        $EXE getset toy.agc a >  a_dec.fa
+        $EXE getset toy.agc b >  b_dec.fa
+        $EXE getset toy.agc c >  c_dec.fa
+        $EXE getset toy.agc ref >  ref_dec.fa
+        cmp a.fa a_dec.fa
+        cmp b.fa b_dec.fa
+        cmp c.fa c_dec.fa
+        cmp ref.fa ref_dec.fa
+        
+    - name: toy example getcol
+      run: |
+        cd toy_ex
+        mkdir getcol
+        $EXE getcol -o getcol toy.agc
+        cmp a.fa getcol/a.fa
+        cmp b.fa getcol/b.fa
+        cmp c.fa getcol/c.fa
+        cmp ref.fa getcol/ref.fa
+        
+    - name: toy example getctg
+      run: |
+        cd toy_ex
+        head -n 2 a.fa > chr1a.fa
+        $EXE getctg toy.agc chr1a > chr1a_dec.fa
+        cmp chr1a.fa chr1a_dec.fa
+        
+        tail -n 2 b.fa > t.fa
+        $EXE getctg toy.agc t > t_dec.fa
+        cmp t.fa t_dec.fa
+        
+        head -n 2 ref.fa > ref-chr1.fa
+        $EXE getctg toy.agc chr1@ref > ref-chr1_dec.fa
+        cmp ref-chr1.fa ref-chr1_dec.fa
+    
+        echo ">chr1:3-10" > ctg.fa
+        echo "TAGCTAGC" >> ctg.fa
+        $EXE getctg toy.agc chr1@ref:3-10 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+        echo ">chr3a:1-3" > ctg.fa
+        echo "GTT" >> ctg.fa
+        $EXE getctg toy.agc chr3a:1-3 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+#APPEND
+
+    - name: toy example create-append-getset
+      run: |
+        cd toy_ex
+        $EXE create -o tmp0.agc ref.fa
+        $EXE append tmp0.agc a.fa > tmp1.agc
+        $EXE append tmp1.agc b.fa > tmp2.agc
+        $EXE append tmp2.agc c.fa > toy_app.agc
+        $EXE getset toy_app.agc a >  a_dec.fa
+        $EXE getset toy_app.agc b >  b_dec.fa
+        $EXE getset toy_app.agc c >  c_dec.fa
+        $EXE getset toy_app.agc ref >  ref_dec.fa
+        cmp a.fa a_dec.fa
+        cmp b.fa b_dec.fa
+        cmp c.fa c_dec.fa
+        cmp ref.fa ref_dec.fa
+        
+    - name: toy example append listset
+      run: |
+        cd toy_ex
+        printf "a\nb\nc\nref\n" > list
+        $EXE listset toy_app.agc > list_dec
+        cmp list list_dec 
+        
+    - name: toy example append listctg
+      run: |
+        cd toy_ex
+        printf "a\n   chr1a\n   chr3a\n" > list
+        $EXE listctg toy_app.agc a > list_dec
+        cmp list list_dec 
+        
+    - name: toy example append getcol
+      run: |
+        cd toy_ex
+        mkdir getcola
+        $EXE getcol -o getcola toy_app.agc
+        cmp a.fa getcola/a.fa
+        cmp b.fa getcola/b.fa
+        cmp c.fa getcola/c.fa
+        cmp ref.fa getcola/ref.fa
+        
+    - name: toy example append getctg
+      run: |
+        cd toy_ex
+        head -n 2 a.fa > chr1a.fa
+        $EXE getctg toy_app.agc chr1a > chr1a_dec.fa
+        cmp chr1a.fa chr1a_dec.fa
+        
+        tail -n 2 b.fa > t.fa
+        $EXE getctg toy_app.agc t > t_dec.fa
+        cmp t.fa t_dec.fa
+        
+        head -n 2 ref.fa > ref-chr1.fa
+        $EXE getctg toy_app.agc chr1@ref > ref-chr1_dec.fa
+        cmp ref-chr1.fa ref-chr1_dec.fa
+    
+        echo ">chr1:3-10" > ctg.fa
+        echo "TAGCTAGC" >> ctg.fa
+        $EXE getctg toy_app.agc chr1@ref:3-10 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+        echo ">chr3a:1-3" > ctg.fa
+        echo "GTT" >> ctg.fa
+        $EXE getctg toy_app.agc chr3a:1-3 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+#ADAPTIVE APPEND
+
+    - name: toy example create-append adaptive-getset
+      run: |
+        cd toy_ex
+        $EXE create -a -o tmp0.agc ref.fa
+        $EXE append -a tmp0.agc a.fa > tmp1.agc
+        $EXE append -a tmp1.agc b.fa > tmp2.agc
+        $EXE append -a tmp2.agc c.fa > toy_app.agc
+        $EXE getset toy_app.agc a >  a_dec.fa
+        $EXE getset toy_app.agc b >  b_dec.fa
+        $EXE getset toy_app.agc c >  c_dec.fa
+        $EXE getset toy_app.agc ref >  ref_dec.fa
+        cmp a.fa a_dec.fa
+        cmp b.fa b_dec.fa
+        cmp c.fa c_dec.fa
+        cmp ref.fa ref_dec.fa
+        
+    - name: toy example append adaptive listset
+      run: |
+        cd toy_ex
+        printf "a\nb\nc\nref\n" > list
+        $EXE listset toy_app.agc > list_dec
+        cmp list list_dec 
+        
+    - name: toy example append adaptive listctg
+      run: |
+        cd toy_ex
+        printf "a\n   chr1a\n   chr3a\n" > list
+        $EXE listctg toy_app.agc a > list_dec
+        cmp list list_dec 
+        
+    - name: toy example append adaptive getcol
+      run: |
+        cd toy_ex
+        mkdir getcolaa
+        $EXE getcol -o getcolaa toy_app.agc
+        cmp a.fa getcolaa/a.fa
+        cmp b.fa getcolaa/b.fa
+        cmp c.fa getcolaa/c.fa
+        cmp ref.fa getcolaa/ref.fa
+        
+    - name: toy example append adaptive getctg
+      run: |
+        cd toy_ex
+        head -n 2 a.fa > chr1a.fa
+        $EXE getctg toy_app.agc chr1a > chr1a_dec.fa
+        cmp chr1a.fa chr1a_dec.fa
+        
+        tail -n 2 b.fa > t.fa
+        $EXE getctg toy_app.agc t > t_dec.fa
+        cmp t.fa t_dec.fa
+        
+        head -n 2 ref.fa > ref-chr1.fa
+        $EXE getctg toy_app.agc chr1@ref > ref-chr1_dec.fa
+        cmp ref-chr1.fa ref-chr1_dec.fa
+    
+        echo ">chr1:3-10" > ctg.fa
+        echo "TAGCTAGC" >> ctg.fa
+        $EXE getctg toy_app.agc chr1@ref:3-10 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+        echo ">chr3a:1-3" > ctg.fa
+        echo "GTT" >> ctg.fa
+        $EXE getctg toy_app.agc chr3a:1-3 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+        
+        
+  macos-remote:
+    name: macOS build (remote)
+    runs-on: macOS-12
+    
+    env: 
+      EXE: ../agc
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: make
+      run: make 
+      
+    - name: toy example
+      run: |
+        cd toy_ex
+        $EXE create -o toy.agc ref.fa a.fa b.fa c.fa
+        $EXE getset toy.agc a >  a_dec.fa
+        cmp a.fa a_dec.fa
+        
