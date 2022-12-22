@@ -4,8 +4,8 @@
 //
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.0
-// Date   : 2022-04-05
+// Version: 3.0
+// Date   : 2022-12-22
 // *******************************************************************************************
 
 #include "../core/agc_decompressor_lib.h"

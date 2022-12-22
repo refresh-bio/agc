@@ -7,8 +7,8 @@
 //
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.1
-// Date   : 2022-05-06
+// Version: 3.0
+// Date   : 2022-12-22
 // *******************************************************************************************
 
 #include <regex>
@@ -51,15 +51,41 @@ protected:
 		}
 	};
 
-	typedef tuple<size_t, name_range_t, vector<segment_desc_t>> task_desc_t;
-
 	const regex re_csr = regex("(.+)@(.+):(.+)-(.+)");
 	const regex re_cs = regex("(.+)@(.+)");
 	const regex re_cr = regex("(.+):(.+)-(.+)");
 	const regex re_c = regex("(.+)");
 
-	unique_ptr<CBoundedQueue<tuple<size_t, name_range_t, vector<segment_desc_t>>>> q_contig_tasks;
-	unique_ptr<CPriorityQueue<pair<string, contig_t>>> pq_contigs_to_save;
+	struct sample_contig_data_t {
+		string sample_name;
+		string contig_name;
+		contig_t contig_data;
+
+		sample_contig_data_t() = default;
+		sample_contig_data_t(string _sample_name, string _contig_name, contig_t _contig_data) :
+			sample_name(_sample_name), contig_name(_contig_name), contig_data(_contig_data) {}
+
+		sample_contig_data_t(const sample_contig_data_t&) = default;
+		sample_contig_data_t(sample_contig_data_t&&) = default;
+		sample_contig_data_t& operator=(const sample_contig_data_t&) = default;
+	};
+
+	struct contig_task_t {
+		size_t priority;
+		string sample_name;
+		name_range_t name_range;
+		vector<segment_desc_t> segments;
+
+		contig_task_t() = default;
+		contig_task_t(const size_t _priority, const string _sample_name, const name_range_t _name_range, const vector<segment_desc_t>& _segments) :
+			priority(_priority), sample_name(_sample_name), name_range(_name_range), segments(_segments) {};
+		contig_task_t(const contig_task_t&) = default;
+		contig_task_t(contig_task_t&&) = default;
+		contig_task_t& operator=(const contig_task_t&) = default;
+	};
+
+	unique_ptr<CBoundedQueue<contig_task_t>> q_contig_tasks;
+	unique_ptr<CPriorityQueue<sample_contig_data_t>> pq_contigs_to_save;
 
 	void convert_to_alpha(contig_t& ctg);
 
@@ -67,7 +93,7 @@ protected:
 	void start_decompressing_threads(vector<thread>& v_threads, const uint32_t n_t, bool converted_to_alpha);
 	bool decompress_segment(const uint32_t group_id, const uint32_t in_group_id, contig_t& ctg, ZSTD_DCtx* zstd_ctx);
 
-	bool decompress_contig(task_desc_t& task, ZSTD_DCtx *zstd_ctx, contig_t& ctg);
+	bool decompress_contig(contig_task_t& task, ZSTD_DCtx *zstd_ctx, contig_t& ctg);
 
 	bool close_decompression();
 

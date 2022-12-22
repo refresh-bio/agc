@@ -1,20 +1,25 @@
-name: GitHub Actions CI
+name: GitHub Actions CI toy example
 
 on:
   push:
       paths-ignore:
       - '**.md'
 jobs:
-  linux-remote:
-    name: Linux test (remote)
-    runs-on: ubuntu-latest
- 
-    
-    env: 
-      EXE: ../agc
-      
+  toy-example:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-22.04]
+
+    name: Toy Test GH 
+    runs-on: ${{ matrix.os }}
+    env:
+     EXE: ../agc
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
+    - uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '14.1'
+      if: ${{ matrix.os == 'macOS-12' }}
     - name: make agc
       run: make agc
    
@@ -84,6 +89,96 @@ jobs:
         echo ">chr3a:1-3" > ctg.fa
         echo "GTT" >> ctg.fa
         $EXE getctg toy.agc chr3a:1-3 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+        echo ">g h i 21:3-4" > ctg.fa
+        echo "AG" >> ctg.fa
+        $EXE getctg toy.agc g:3-4 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+#CREATE-C
+
+    - name: toy example create -c AND -a -c
+      run: |
+        cd toy_ex
+        $EXE create -c -o toy.agc ref2.fa c.fa 
+        $EXE create -a -c ref2.fa b.fa  > toy2.agc
+        
+    - name: toy example listset -c
+      run: |
+        cd toy_ex
+        printf "1\n2\n3\nchr1\n" > list
+        $EXE listset toy.agc > list_dec
+        cmp list list_dec 
+        printf "c\nchr1\ng\nt\n" > list
+        $EXE listset toy2.agc > list_dec
+        cmp list list_dec 
+        
+    
+    - name: toy example getset -c 
+      run: |
+        cd toy_ex
+        $EXE getset toy.agc chr1 >  chr1_dec.fa
+        $EXE getset toy.agc 1 >  1_dec.fa
+        $EXE getset toy.agc 2 >  2_dec.fa
+        $EXE getset toy.agc 3 >  3_dec.fa
+        head -n 2 c.fa > 1.fa
+        head -n 4 c.fa | tail -n 2  > 2.fa
+        tail -n 2 c.fa > 3.fa
+        cmp 1.fa 1_dec.fa
+        cmp 2.fa 2_dec.fa
+        cmp 3.fa 3_dec.fa
+        cmp ref2.fa chr1_dec.fa
+        $EXE getset toy2.agc chr1 >  chr1_dec.fa
+        cmp ref2.fa chr1_dec.fa
+        $EXE getset toy2.agc c >  c_dec.fa
+        $EXE getset toy2.agc g >  g_dec.fa
+        $EXE getset toy2.agc t >  t_dec.fa
+        sed -n '3p;4p' < b.fa > g.fa
+        sed -n '5p;6p' < b.fa > c.fa
+        sed -n '7p;8p' < b.fa > t.fa
+        cmp g.fa g_dec.fa
+        cmp c.fa c_dec.fa
+        cmp t.fa t_dec.fa
+        
+        
+    - name: toy example getcol -c
+      run: |
+        cd toy_ex
+        rm -rf getcol
+        mkdir getcol
+        $EXE getcol -o getcol toy.agc
+        cmp 1.fa getcol/1.fa
+        cmp 2.fa getcol/2.fa
+        cmp 3.fa getcol/3.fa
+        cmp ref2.fa getcol/chr1.fa
+        rm -rf getcol
+        mkdir getcol
+        $EXE getcol -o getcol toy2.agc
+        cmp c.fa getcol/c.fa
+        cmp t.fa getcol/t.fa
+        cmp g.fa getcol/g.fa
+        cmp ref2.fa getcol/chr1.fa
+        
+    - name: toy example getctg -c
+      run: |
+        cd toy_ex
+        $EXE getctg toy.agc chr1 > chr1_dec.fa
+        cmp ref2.fa chr1_dec.fa
+    
+        echo ">chr1:3-7" > ctg.fa
+        echo "TAGCT" >> ctg.fa
+        $EXE getctg toy.agc chr1:3-7 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+        echo ">3:3-10" > ctg.fa
+        echo "TCCCGGGA" >> ctg.fa
+        $EXE getctg toy.agc 3:3-10 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+        echo ">g h i 21:3-4" > ctg.fa
+        echo "AG" >> ctg.fa
+        $EXE getctg toy2.agc g:3-4 > ctg_dec.fa
         cmp ctg.fa ctg_dec.fa
         
 #APPEND
@@ -221,23 +316,29 @@ jobs:
         cmp ctg.fa ctg_dec.fa
         
         
-        
   macos-remote:
     name: macOS build (remote)
     runs-on: macOS-12
+    
     
     env: 
       EXE: ../agc
 
     steps:
-    - uses: actions/checkout@v2
-    - name: make
-      run: make 
+    - uses: actions/checkout@v3
+    - uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '14.1'
+    - name: make CXX=g++-11 agc
+      run: make CXX=g++-11 agc
       
     - name: toy example
       run: |
         cd toy_ex
+        $EXE 
+        $EXE create
         $EXE create -o toy.agc ref.fa a.fa b.fa c.fa
         $EXE getset toy.agc a >  a_dec.fa
         cmp a.fa a_dec.fa
-        
+                
+

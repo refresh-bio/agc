@@ -37,6 +37,18 @@
     <ClCompile Include="..\core\agc_decompressor_lib.cpp">
       <Filter>Source files</Filter>
     </ClCompile>
+    <ClCompile Include="..\core\collection_v3.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\core\collection_v2.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\core\collection_v1.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\core\utils.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="application.h">
@@ -91,6 +103,15 @@
       <Filter>Header files</Filter>
     </ClInclude>
     <ClInclude Include="..\core\agc_decompressor_lib.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\collection_v3.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\collection_v2.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\collection_v1.h">
       <Filter>Header files</Filter>
     </ClInclude>
   </ItemGroup>

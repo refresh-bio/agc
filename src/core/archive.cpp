@@ -4,13 +4,15 @@
 //
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.1
-// Date   : 2022-05-06
+// Version: 3.0
+// Date   : 2022-12-22
 // *******************************************************************************************
 
 #include "../core/archive.h"
+#include "defs.h"
 
 #include <iostream>
+#include <algorithm>
 
 #ifndef _WIN32
 #define my_fseek	fseek
@@ -21,10 +23,13 @@
 #endif
 
 // *******************************************************************************************
-CArchive::CArchive(const bool _input_mode, const size_t _io_buffer_size)
+CArchive::CArchive(const bool _input_mode, const size_t _io_buffer_size, const string& _lazy_prefix)
 {
 	input_mode = _input_mode;
 	io_buffer_size = _io_buffer_size;
+
+	if(input_mode)			// Ignore lazy_prefix in output mode
+		lazy_prefix = _lazy_prefix;
 }
 
 // *******************************************************************************************
@@ -180,6 +185,8 @@ bool CArchive::deserialize()
 
 	v_streams.resize(n_streams, stream_t());
 
+	rm_streams.reserve(2 * n_streams);
+
 	for (size_t i = 0; i < n_streams; ++i)
 	{
 		auto& stream_second = v_streams[i];
@@ -197,7 +204,8 @@ bool CArchive::deserialize()
 
 		stream_second.cur_id = 0;
 
-		rm_streams[stream_second.stream_name] = i;
+		if(!is_lazy_str(stream_second.stream_name))
+			rm_streams[stream_second.stream_name] = i;
 	}
 	
 	f_in.Seek(0);
@@ -231,15 +239,24 @@ int CArchive::RegisterStream(const string &stream_name)
 }
 
 // *******************************************************************************************
+int CArchive::get_stream_id(const string& stream_name)
+{
+	if (is_lazy_str(stream_name))
+		de_lazy();
+
+	auto p = rm_streams.find(stream_name);
+	if (p != rm_streams.end())
+		return (int)p->second;
+
+	return -1;
+}
+
+// *******************************************************************************************
 int CArchive::GetStreamId(const string &stream_name)
 {
 	lock_guard<mutex> lck(mtx);
 
-	auto p = rm_streams.find(stream_name);
-	if (p != rm_streams.end())
-		return (int) p->second;
-
-	return -1;
+	return get_stream_id(stream_name);
 }
 
 // *******************************************************************************************
@@ -341,10 +358,8 @@ size_t CArchive::GetRawSize(const int stream_id)
 }
 
 // *******************************************************************************************
-bool CArchive::GetPart(const int stream_id, vector<uint8_t> &v_data, uint64_t &metadata)
+bool CArchive::get_part(const int stream_id, vector<uint8_t>& v_data, uint64_t& metadata)
 {
-	lock_guard<mutex> lck(mtx);
-	
 	auto& p = v_streams[stream_id];
 
 	if (p.cur_id >= p.parts.size())
@@ -354,7 +369,7 @@ bool CArchive::GetPart(const int stream_id, vector<uint8_t> &v_data, uint64_t &m
 
 	f_in.Seek(p.parts[p.cur_id].offset);
 
-	if(p.parts[p.cur_id].size != 0)
+	if (p.parts[p.cur_id].size != 0)
 		read(metadata);
 	else
 	{
@@ -367,28 +382,65 @@ bool CArchive::GetPart(const int stream_id, vector<uint8_t> &v_data, uint64_t &m
 
 	p.cur_id++;
 
-	//if (r != p.parts[p.cur_id-1].size)
-		//return false;
-
-	//return r == p.parts[p.cur_id-1].size;
 	return true;
 }
 
 // *******************************************************************************************
-bool CArchive::GetPart(const int stream_id, const int part_id, vector<uint8_t> &v_data, uint64_t &metadata)
+bool CArchive::GetPart(const int stream_id, vector<uint8_t> &v_data, uint64_t &metadata)
 {
 	lock_guard<mutex> lck(mtx);
 	
+	return get_part(stream_id, v_data, metadata);
+}
+
+// *******************************************************************************************
+pair<int, bool> CArchive::GetPart(const string& stream_name, vector<uint8_t> &v_data, uint64_t &metadata)
+{
+	lock_guard<mutex> lck(mtx);
+	
+	int stream_id = get_stream_id(stream_name);
+
+	if (stream_id < 0)
+		return make_pair(-1, false);
+
+	return make_pair(stream_id, get_part(stream_id, v_data, metadata));
+}
+
+// *******************************************************************************************
+tuple<int, bool, int, bool> CArchive::GetParts(
+	const string& stream_name1, vector<uint8_t>& v_data1, uint64_t& metadata1,
+	const string& stream_name2, vector<uint8_t>& v_data2, uint64_t& metadata2)
+{
+	lock_guard<mutex> lck(mtx);
+
+	bool res1 = false;
+	bool res2 = false;
+
+	int stream_id1 = get_stream_id(stream_name1);
+	int stream_id2 = get_stream_id(stream_name2);
+
+	if (stream_id1 >= 0)
+		res1 = get_part(stream_id1, v_data1, metadata1);
+
+	if (stream_id2 >= 0)
+		res2 = get_part(stream_id2, v_data2, metadata2);
+
+	return make_tuple(stream_id1, res1, stream_id2, res2);
+}
+
+// *******************************************************************************************
+bool CArchive::get_part(const int stream_id, const int part_id, vector<uint8_t>& v_data, uint64_t& metadata)
+{
 	auto& p = v_streams[stream_id];
 
-	if ((size_t) part_id >= p.parts.size())
+	if ((size_t)part_id >= p.parts.size())
 		return false;
 
 	v_data.resize(p.parts[part_id].size);
 
 	f_in.Seek(p.parts[part_id].offset);
 
-	if(p.parts[part_id].size != 0)
+	if (p.parts[part_id].size != 0)
 		read(metadata);
 	else
 	{
@@ -399,6 +451,49 @@ bool CArchive::GetPart(const int stream_id, const int part_id, vector<uint8_t> &
 	f_in.Read(v_data.data(), p.parts[part_id].size);
 
 	return true;
+}
+
+// *******************************************************************************************
+bool CArchive::GetPart(const int stream_id, const int part_id, vector<uint8_t> &v_data, uint64_t &metadata)
+{
+	lock_guard<mutex> lck(mtx);
+
+	return get_part(stream_id, part_id, v_data, metadata);
+}
+
+// *******************************************************************************************
+pair<int, bool> CArchive::GetPart(const string& stream_name, const int part_id, vector<uint8_t> &v_data, uint64_t &metadata)
+{
+	lock_guard<mutex> lck(mtx);
+
+	int stream_id = get_stream_id(stream_name);
+
+	if (stream_id < 0)
+		return make_pair(-1, false);
+
+	return make_pair(stream_id, get_part(stream_id, part_id, v_data, metadata));
+}
+
+// *******************************************************************************************
+tuple<int, bool, int, bool> CArchive::GetParts(
+	const string& stream_name1, const int part_id1, vector<uint8_t>& v_data1, uint64_t& metadata1,
+	const string& stream_name2, const int part_id2, vector<uint8_t>& v_data2, uint64_t& metadata2)
+{
+	lock_guard<mutex> lck(mtx);
+
+	bool res1 = false;
+	bool res2 = false;
+
+	int stream_id1 = get_stream_id(stream_name1);
+	int stream_id2 = get_stream_id(stream_name2);
+
+	if (stream_id1 >= 0)
+		res1 = get_part(stream_id1, part_id1, v_data1, metadata1);
+
+	if (stream_id2 >= 0)
+		res2 = get_part(stream_id2, part_id2, v_data2, metadata2);
+
+	return make_tuple(stream_id1, res1, stream_id2, res2);
 }
 
 // *******************************************************************************************

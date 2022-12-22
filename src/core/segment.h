@@ -7,8 +7,8 @@
 //
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.1
-// Date   : 2022-05-06
+// Version: 3.0
+// Date   : 2022-12-22
 // *******************************************************************************************
 
 #include <vector>
@@ -35,12 +35,10 @@ class CSegment
     uint32_t contigs_in_pack;
     uint32_t min_match_len;
     bool concatenated_genomes;
+    uint32_t archive_version;
 
     int stream_id_ref;
     int stream_id_delta;
-
-//    const int ref_compression_level = 15;
-//    const int delta_compression_level = 19;
 
     internal_state_t internal_state;
 
@@ -54,7 +52,10 @@ class CSegment
 
     uint32_t no_seqs;
     vector<contig_t> v_lzp;
+
+public:
     vector<contig_t> v_raw;
+private:
 
     uint64_t ref_size;
     uint64_t seq_size;
@@ -161,9 +162,9 @@ class CSegment
     }
 
     // *******************************************************************************************
-    void add_to_archive(const int stream_id, const contig_t& data, const int compression_level, bool buffered, ZSTD_CCtx* zstd_ctx)
+    void add_to_archive(const int stream_id, const contig_t& data, const int compression_level, ZSTD_CCtx* zstd_ctx)
     {
-        size_t a_size = (uint32_t) ZSTD_compressBound(data.size());
+        size_t a_size = ZSTD_compressBound(data.size());
         uint8_t *packed = new uint8_t[a_size+1u];
         uint32_t packed_size = (uint32_t) ZSTD_compressCCtx(zstd_ctx, (void *) packed, a_size, data.data(), data.size(), compression_level);
         packed[packed_size] = 0;      // ZSTD compression marker - plain (0)
@@ -171,30 +172,24 @@ class CSegment
         if(packed_size + 1u < (uint32_t) data.size())
         {
             vector<uint8_t> v_packed(packed, packed + packed_size + 1);
-            if(buffered)
-                out_archive->AddPartBuffered(stream_id, v_packed, data.size());
-            else
-                out_archive->AddPart(stream_id, v_packed, data.size());
+            out_archive->AddPartBuffered(stream_id, v_packed, data.size());
         }
         else
         {
-            if(buffered)
-                out_archive->AddPartBuffered(stream_id, data, 0);
-            else
-                out_archive->AddPart(stream_id, data, 0);
+            out_archive->AddPartBuffered(stream_id, data, 0);
         }
 
         delete[] packed;
     }
 
     // *******************************************************************************************
-    void add_to_archive_tuples(const int stream_id, const contig_t& data, const int compression_level, bool buffered, ZSTD_CCtx* zstd_ctx)
+    void add_to_archive_tuples(const int stream_id, const contig_t& data, const int compression_level, ZSTD_CCtx* zstd_ctx)
     {
         vector<uint8_t> v_tuples;
 
         bytes2tuples(data, v_tuples);
 
-        size_t a_size = (uint32_t) ZSTD_compressBound(v_tuples.size());
+        size_t a_size = ZSTD_compressBound(v_tuples.size());
         uint8_t *packed = new uint8_t[a_size+1u];
         uint32_t packed_size = (uint32_t) ZSTD_compressCCtx(zstd_ctx, (void *) packed, a_size, v_tuples.data(), v_tuples.size(), compression_level);
         packed[packed_size] = 1;      // ZSTD compression marker - tuples (1)
@@ -202,26 +197,20 @@ class CSegment
         if(packed_size + 1u < (uint32_t) data.size())
         {
             vector<uint8_t> v_packed(packed, packed + packed_size + 1);
-            if(buffered)
-                out_archive->AddPartBuffered(stream_id, v_packed, data.size());
-            else
-                out_archive->AddPart(stream_id, v_packed, data.size());
+            out_archive->AddPartBuffered(stream_id, v_packed, data.size());
         }
         else
         {
-            if(buffered)
-                out_archive->AddPartBuffered(stream_id, data, 0);
-            else
-                out_archive->AddPart(stream_id, data, 0);
+            out_archive->AddPartBuffered(stream_id, data, 0);
         }
 
         delete[] packed;
     }
 
     // *******************************************************************************************
-    void store_in_archive(const contig_t& data, bool buffered, ZSTD_CCtx* zstd_ctx)
+    void store_in_archive(const contig_t& data, ZSTD_CCtx* zstd_ctx)
     { 
-        string stream_name = name + "-ref";
+        string stream_name = name + ss_ref_ext(archive_version);
 
         stream_id_ref = out_archive->RegisterStream(stream_name);
 
@@ -253,13 +242,13 @@ class CSegment
         }
 
         if (best_frac < 0.5)
-            add_to_archive_tuples(stream_id_ref, data, 13, buffered, zstd_ctx);
+            add_to_archive_tuples(stream_id_ref, data, 13, zstd_ctx);
         else
-            add_to_archive(stream_id_ref, data, 19, buffered, zstd_ctx);
+            add_to_archive(stream_id_ref, data, 19, zstd_ctx);
     }
 
     // *******************************************************************************************
-    void store_in_archive(const vector<contig_t>& v_data, bool buffered, ZSTD_CCtx* zstd_ctx)
+    void store_in_archive(const vector<contig_t>& v_data, ZSTD_CCtx* zstd_ctx)
     {
         contig_t pack;
 
@@ -276,25 +265,21 @@ class CSegment
         }
 
         if (stream_id_delta < 0)
-            stream_id_delta = out_archive->RegisterStream(name + "-delta");
+            stream_id_delta = out_archive->RegisterStream(name + ss_delta_ext(archive_version));
 
-//        add_to_archive(stream_id_delta, pack, delta_compression_level, buffered, zstd_ctx);
-        add_to_archive(stream_id_delta, pack, 17, buffered, zstd_ctx);
+        add_to_archive(stream_id_delta, pack, 17, zstd_ctx);
     }
 
     // *******************************************************************************************
-    void store_compressed_delta_in_archive(bool buffered)
+    void store_compressed_delta_in_archive()
     {
         if (stream_id_delta < 0)
         {
-            string stream_name = name + "-delta";
+            string stream_name = name + ss_delta_ext(archive_version);
             stream_id_delta = out_archive->RegisterStream(stream_name);
         }
 
-        if(buffered)
-            out_archive->AddPartBuffered(stream_id_delta, packed_delta, raw_delta_size);
-        else
-            out_archive->AddPart(stream_id_delta, packed_delta, raw_delta_size);
+        out_archive->AddPartBuffered(stream_id_delta, packed_delta, raw_delta_size);
     }
 
     void unpack(ZSTD_DCtx* zstd_ctx);
@@ -304,7 +289,7 @@ public:
     CSegment(const string &_name, shared_ptr<CArchive> _in_archive, shared_ptr<CArchive> _out_archive,
         const uint32_t _contigs_in_pack, const uint32_t _min_match_len, const bool _concatenated_genomes, uint32_t _archive_version) :
         name(_name), in_archive(_in_archive), out_archive(_out_archive), 
-        contigs_in_pack(_contigs_in_pack), min_match_len(_min_match_len), concatenated_genomes(_concatenated_genomes),
+        contigs_in_pack(_contigs_in_pack), min_match_len(_min_match_len), concatenated_genomes(_concatenated_genomes), archive_version(_archive_version),
         no_seqs(0), ref_size(0), seq_size(0), packed_size(0)
     {
         stream_id_ref = -1;
@@ -323,17 +308,19 @@ public:
     {
     }
 
-    uint32_t add_raw(const contig_t& s, bool buffered, ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx);
-    uint32_t add(const contig_t& s, bool buffered, ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx);
-    uint64_t estimate(const contig_t& s, ZSTD_DCtx* zstd_dctx);
+    uint32_t add_raw(const contig_t& s, ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx);
+    uint32_t add(const contig_t& s, ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx);
+    uint64_t estimate(const contig_t& s, uint32_t bound, ZSTD_DCtx* zstd_dctx);
 
     void get_coding_cost(const contig_t& s, vector<uint32_t> &v_costs, const bool prefix_costs, ZSTD_DCtx* zstd_dctx);
 
-    void finish(bool buffered, ZSTD_CCtx* zstd_ctx);
+    void finish(ZSTD_CCtx* zstd_ctx);
     bool get_raw(const uint32_t id_seq, contig_t& ctg, ZSTD_DCtx* zstd_ctx);
     bool get(const uint32_t id_seq, contig_t& ctg, ZSTD_DCtx* zstd_ctx);
     void clear();
     uint64_t get_no_seqs();
+
+    size_t get_ref_size();
 
     void appending_init();
 };

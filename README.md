@@ -79,6 +79,10 @@ For detailed instructions on how to set up Bioconda, please refer to the [Biocon
 
 
 ## Version history
+* 3.0 (22 Dec 2022)
+  * Improved compression (slightly better ratio).
+  * Improved archive format &mdash; much faster queries for archives containing large number of samples.
+  * Bugfixes.
 * 2.1 (9 May 2022)
   * Bugfix in append mode. (In version 2.0, running append could produce improper archive.)
 * 2.0 (5 Apr 2022)
@@ -172,6 +176,7 @@ Options:
 * `-l <int>`       - line length (default: 80; min: 40; max: 2000000000)
 * `-o <file_name>` - output to file (default: output is sent to stdout)
 * `-t <int>`       - no. of threads (default: no. logical cores / 2; min: 1; max: no. logical. cores)
+* `-p`             - disable file prefetching (useful for short genomes)
 * `-v <int>`       - verbosity level (default: 0; min: 0; max: 2)
   
 #### Hints

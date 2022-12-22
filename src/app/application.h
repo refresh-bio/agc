@@ -7,8 +7,8 @@
 //
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.1
-// Date   : 2022-05-06
+// Version: 3.0
+// Date   : 2022-12-22
 // *******************************************************************************************
 
 #include <iostream>
@@ -70,7 +70,6 @@ struct CParams
 
 	uint32_t no_segments = 0;
 	bool concatenated_genomes = false;
-	bool reproducibility_mode = true;
 	bool use_stdout = true;
 	bool store_cmd_line = true;
 	bool prefetch = true;
@@ -108,6 +107,8 @@ class CApplication
 	bool parse_params_listset(const int argc, const char** argv);
 	bool parse_params_listctg(const int argc, const char** argv);
 	bool parse_params_info(const int argc, const char** argv);
+
+	void sanitize_input_file_names(vector<string> &v_file_names);
 
 	bool create();
 	bool append();

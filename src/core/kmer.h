@@ -7,8 +7,8 @@
 //
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.1
-// Date   : 2022-05-06
+// Version: 3.0
+// Date   : 2022-12-22
 // *******************************************************************************************
 
 #include "../core/defs.h"
@@ -72,26 +72,6 @@ class CKmer
 			++cur_size;
 	}
 	
-	// *******************************************************************************************
-	inline void insert_canonical(uint64_t symbol) {
-		// rev. comp. code
-		kmer_rc >>= 2;
-		kmer_rc += reverse_complement(symbol) << 62;
-		kmer_rc &= mask;
-
-		// direct code
-		if (cur_size == max_size)
-		{
-			kmer_dir <<= 2;
-			kmer_dir += symbol << shift;
-		}
-		else
-		{
-			++cur_size;
-			kmer_dir += symbol << (64 - 2 * cur_size);
-		}
-	}
-
 	// *******************************************************************************************
 	inline void insert_canonical_zero() {
 		// rev. comp. code
@@ -294,6 +274,26 @@ public:
 	}
 
 	// *******************************************************************************************
+	inline void insert_canonical(uint64_t symbol) {
+		// rev. comp. code
+		kmer_rc >>= 2;
+		kmer_rc += reverse_complement(symbol) << 62;
+		kmer_rc &= mask;
+
+		// direct code
+		if (cur_size == max_size)
+		{
+			kmer_dir <<= 2;
+			kmer_dir += symbol << shift;
+		}
+		else
+		{
+			++cur_size;
+			kmer_dir += symbol << (64 - 2 * cur_size);
+		}
+	}
+
+	// *******************************************************************************************
 	void insert(uint64_t symbol) {
 		if (variant == kmer_mode_t::direct)
 			insert_direct(symbol);
@@ -347,6 +347,11 @@ public:
 			return kmer_rc;
 		else
 			return min(kmer_dir, kmer_rc);
+	}
+
+	// *******************************************************************************************
+	uint64_t data_canonical() const {
+		return min(kmer_dir, kmer_rc);
 	}
 
 	// *******************************************************************************************

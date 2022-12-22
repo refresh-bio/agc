@@ -4,8 +4,8 @@
 //
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.1
-// Date   : 2022-05-06
+// Version: 3.0
+// Date   : 2022-12-22
 // *******************************************************************************************
 
 #include <iostream>
@@ -70,6 +70,8 @@ bool CApplication::create()
 {
     CAGCCompressor agc_c;
 
+    sanitize_input_file_names(execution_params.input_names);
+
     bool r = agc_c.Create(
         execution_params.out_archive_name,
         execution_params.pack_cardinality(),
@@ -100,9 +102,7 @@ bool CApplication::create()
     }
 
     if(r)
-        r &= execution_params.reproducibility_mode ?
-            agc_c.AddSampleFilesRep(v_sample_file_names, execution_params.no_threads()) :
-            agc_c.AddSampleFiles(v_sample_file_names, execution_params.no_threads());
+        r &= agc_c.AddSampleFiles(v_sample_file_names, execution_params.no_threads());
 
     if (r && execution_params.store_cmd_line)
         agc_c.AddCmdLine(cmd_line);
@@ -116,6 +116,8 @@ bool CApplication::create()
 bool CApplication::append()
 {
     CAGCCompressor agc_c;
+
+    sanitize_input_file_names(execution_params.input_names);
 
     bool r = agc_c.Append(execution_params.in_archive_name, execution_params.out_archive_name, execution_params.verbosity(), true, execution_params.concatenated_genomes, execution_params.adaptive_compression,
         execution_params.no_threads());
@@ -138,9 +140,7 @@ bool CApplication::append()
         cerr << "Start of compression\n";
 
     if(r)
-        r &= execution_params.reproducibility_mode ?
-            agc_c.AddSampleFilesRep(v_sample_file_names, execution_params.no_threads()) :
-            agc_c.AddSampleFiles(v_sample_file_names, execution_params.no_threads());
+        r &= agc_c.AddSampleFiles(v_sample_file_names, execution_params.no_threads());
 
     if (r && execution_params.store_cmd_line)
         agc_c.AddCmdLine(cmd_line);
@@ -326,7 +326,7 @@ bool CApplication::info()
     cerr << "Command lines:" << endl;
 
     for (auto& cmd : cmd_lines)
-        cout << cmd.second << " : " << cmd.first << endl;
+        cerr << cmd.second << " : " << cmd.first << endl;
 
     if (execution_params.verbosity() > 0)
     {
@@ -336,7 +336,7 @@ bool CApplication::info()
 
         cerr << "File type info:\n";
         for (auto& x : m_file_type_info)
-            cout << "  " << x.first << " : " << x.second << endl;
+            cerr << "  " << x.first << " : " << x.second << endl;
     }
 
     agc_d.Close();

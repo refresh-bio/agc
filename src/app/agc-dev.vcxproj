@@ -43,7 +43,8 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>NotSet</CharacterSet>
+    <EnableASAN>false</EnableASAN>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -51,6 +52,8 @@
     <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>NotSet</CharacterSet>
+    <EnableASAN>false</EnableASAN>
+    <EnableFuzzer>false</EnableFuzzer>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -120,6 +123,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <LanguageStandard_C>stdc11</LanguageStandard_C>
       <AdditionalIncludeDirectories>..\..\libs\mimalloc</AdditionalIncludeDirectories>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -160,7 +164,7 @@
     </Library>
     <Library Include="..\..\libs\Debug\Raduls.lib">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </Library>
     <Library Include="..\..\libs\Debug\zlibstat.lib">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
@@ -168,6 +172,7 @@
     </Library>
     <Library Include="..\..\libs\mimalloc\mimalloc-static-debug.lib">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </Library>
     <Library Include="..\..\libs\mimalloc\mimalloc-static.lib">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
@@ -191,6 +196,9 @@
     <ClInclude Include="..\core\agc_compressor.h" />
     <ClInclude Include="..\core\agc_decompressor.h" />
     <ClInclude Include="..\core\agc_decompressor_lib.h" />
+    <ClInclude Include="..\core\collection_v1.h" />
+    <ClInclude Include="..\core\collection_v2.h" />
+    <ClInclude Include="..\core\collection_v3.h" />
     <ClInclude Include="application.h" />
     <ClInclude Include="..\core\archive.h" />
     <ClInclude Include="..\core\collection.h" />
@@ -205,10 +213,16 @@
     <ClInclude Include="..\core\utils.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\libs\mimalloc\override-new-delete.cpp" />
+    <ClCompile Include="..\..\libs\mimalloc\override-new-delete.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\core\agc_compressor.cpp" />
     <ClCompile Include="..\core\agc_decompressor.cpp" />
     <ClCompile Include="..\core\agc_decompressor_lib.cpp" />
+    <ClCompile Include="..\core\collection_v1.cpp" />
+    <ClCompile Include="..\core\collection_v2.cpp" />
+    <ClCompile Include="..\core\collection_v3.cpp" />
+    <ClCompile Include="..\core\utils.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="application.cpp" />
     <ClCompile Include="..\core\archive.cpp" />

@@ -4,12 +4,13 @@
 //
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.1
-// Date   : 2022-05-06
+// Version: 3.0
+// Date   : 2022-12-22
 // *******************************************************************************************
 
 #include "application.h"
 #include <algorithm>
+#include <unordered_set>
 #include <fstream>
 #include <iterator>
 #include "../core/utils.h"
@@ -34,7 +35,7 @@ bool CApplication::parse_params(const int argc, const char** argv)
             usage_append();
         else if (execution_params.mode == "getcol")
             usage_getcol();
-        else if (execution_params.mode == "getset")
+        else if (execution_params.mode == "getset")	
             usage_getset();
         else if (execution_params.mode == "getctg")
             usage_getctg();
@@ -105,7 +106,6 @@ void CApplication::usage_create() const
 	cerr << "   -b <int>       - batch size " << execution_params.pack_cardinality.info() << "\n";
     cerr << "   -c             - concatenated genomes in a single file (default: " << bool2string(execution_params.concatenated_genomes) << ")\n";
     cerr << "   -d             - do not store cmd-line (default: " << bool2string(execution_params.store_cmd_line) << ")\n";
-//	cerr << "   -f             - use fast mode (default: " << bool2string(!execution_params.reproducibility_mode) << ")\n";
 	cerr << "   -i <file_name> - file with FASTA file names (alterantive to listing file names explicitely in command line)\n";
     cerr << "   -k <int>       - k-mer length" << execution_params.k.info() << "\n";
     cerr << "   -l <int>       - min. match length " << execution_params.min_match_length.info() << "\n";
@@ -136,8 +136,6 @@ bool CApplication::parse_params_create(const int argc, const char** argv)
 			execution_params.adaptive_compression = true;
 		} else if (c == 'c') {
 			execution_params.concatenated_genomes = true;
-		} else if (c == 'f') {
-//			execution_params.reproducibility_mode = false;
 		} else if (c == 'd') {
 			execution_params.store_cmd_line = false;
 		} else if (c == 'i') {
@@ -173,7 +171,6 @@ void CApplication::usage_append() const
 	cerr << "   -a             - adaptive mode (default: " << bool2string(execution_params.adaptive_compression) << ")\n";
 	cerr << "   -c             - concatenated genomes in a single file (default: " << bool2string(execution_params.concatenated_genomes) << ")\n";
     cerr << "   -d             - do not store cmd-line (default: " << bool2string(execution_params.store_cmd_line) << ")\n";
-//	cerr << "   -f             - use fast mode (default: " << bool2string(!execution_params.reproducibility_mode) << ")\n";
 	cerr << "   -i <file_name> - file with FASTA file names (alterantive to listing file names explicitely in command line)\n";
     cerr << "   -o <file_name> - output to file (default: output is sent to stdout)\n";
 	cerr << "   -t <int>       - no of threads " << execution_params.no_threads.info() << "\n";
@@ -191,8 +188,6 @@ bool CApplication::parse_params_append(const int argc, const char** argv)
 			execution_params.no_threads.assign(atoi(o.arg));
 		} else if (c == 'c') {
 			execution_params.concatenated_genomes = true;
-		} else if (c == 'f') {
-//			execution_params.reproducibility_mode = false;
 		} else if (c == 'd') {
 			execution_params.store_cmd_line = false;
 		}
@@ -277,7 +272,8 @@ void CApplication::usage_getset() const
     cerr << "Options:\n";
     cerr << "   -l <int>       - line length " << execution_params.line_length.info() << "\n";
     cerr << "   -o <file_name> - output to file (default: output is sent to stdout)\n";
-    cerr << "   -t <int>       - no of threads " << execution_params.no_threads.info() << "\n";
+	cerr << "   -p             - disable file prefetching (useful for small genomes)" << "\n";
+	cerr << "   -t <int>       - no of threads " << execution_params.no_threads.info() << "\n";
     cerr << "   -v <int>       - verbosity level " << execution_params.verbosity.info() << "\n";
 }
 
@@ -289,7 +285,7 @@ bool CApplication::parse_params_getset(const int argc, const char** argv)
 
 	execution_params.prefetch = true;
 
-	while ((c = ketopt(&o, argc, argv, 1, "t:l:o:v:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "t:l:o:pv:", 0)) >= 0) {
 		if (c == 't') {
 			execution_params.no_threads.assign(atoi(o.arg));
 		} else if (c == 'l') {
@@ -297,6 +293,9 @@ bool CApplication::parse_params_getset(const int argc, const char** argv)
 		} else if (c == 'o') {
 			execution_params.output_name = o.arg;
 			execution_params.use_stdout = false;
+		}
+		else if (c == 'p') {
+			execution_params.prefetch = false;
 		} else if (c == 'v') {
 			execution_params.verbosity.assign(atoi(o.arg));
 		}
@@ -331,8 +330,8 @@ void CApplication::usage_getctg() const
     cerr << "Options:\n";
     cerr << "   -l <int>       - line length " << execution_params.line_length.info() << "\n";
     cerr << "   -o <file_name> - output to file (default: output is sent to stdout)\n";
-    cerr << "   -t <int>       - no of threads " << execution_params.no_threads.info() << "\n";
-    cerr << "   -p             - disable file prefetching (useful for short queries)" << "\n";
+	cerr << "   -p             - disable file prefetching (useful for short queries)" << "\n";
+	cerr << "   -t <int>       - no of threads " << execution_params.no_threads.info() << "\n";
     cerr << "   -v <int>       - verbosity level " << execution_params.verbosity.info() << "\n";
 }
 
@@ -511,6 +510,26 @@ bool CApplication::load_file_names(const string &fn, vector<string>& v_file_name
 string CApplication::bool2string(bool x) const
 {
     return x ? "true"s : "false"s;
+}
+
+// *******************************************************************************************
+// Remove duplicates in file name list
+void CApplication::sanitize_input_file_names(vector<string>& v_file_names)
+{
+	vector<string> v_tmp;
+
+	v_tmp.swap(v_file_names);
+	unordered_set<string> s_tmp;
+
+	v_file_names.reserve(v_tmp.size());
+	s_tmp.reserve(v_tmp.size());
+
+	for (auto& s : v_tmp)
+		if(!s_tmp.count(s))
+		{
+			v_file_names.emplace_back(s);
+			s_tmp.emplace(s);
+		}
 }
 
 // EOF

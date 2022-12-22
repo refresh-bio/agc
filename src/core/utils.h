@@ -7,8 +7,8 @@
 //
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.1
-// Date   : 2022-05-06
+// Version: 3.0
+// Date   : 2022-12-22
 // *******************************************************************************************
 
 #include "../core/defs.h"
@@ -174,6 +174,17 @@ constexpr uint64_t zigzag_decode(uint64_t x_val, uint64_t x_prev)
 }
 
 // *****************************************************************************************
+string ss_prefix(uint32_t archive_version);
+string ss_base(uint32_t archive_version, uint32_t n);
+string ss_ref_name(uint32_t archive_version, uint32_t n);
+string ss_delta_name(uint32_t archive_version, uint32_t n);
+string ss_ref_ext(uint32_t archive_version);
+string ss_delta_ext(uint32_t archive_version);
+string int_to_hex(uint32_t n);
+string int_to_base64(uint32_t n);
+
+
+// *****************************************************************************************
 //
 class CBarrier
 {
@@ -276,6 +287,107 @@ struct hash_pair {
 	size_t operator()(const pair<T, S>& x) const
 	{
 		return hash<T>{}(x.first) ^ hash<S>{}(x.second);
+	}
+};
+
+template <>
+struct std::hash<pair<uint64_t, uint64_t>>
+{
+	std::size_t operator()(const pair<uint64_t, uint64_t>& k) const
+	{
+		using std::size_t;
+		using std::hash;
+
+		return (hash<uint64_t>()(k.first)) ^ (hash<uint64_t>()(k.second));
+	}
+};
+
+// **********************************************************************************
+class bloom_set_t {
+//	const uint32_t no_hashes = 2;
+	const uint32_t no_hashes = 3;
+
+	MurMur64Hash mmh;
+
+	vector<uint64_t> arr;
+
+	size_t no_elements;
+	size_t allocated;
+	size_t mask;
+	uint32_t mask_shift;
+
+	uint64_t normalize_size(uint64_t size)
+	{
+		size *= no_hashes;
+		size *= 2;
+
+		while (size & (size - 1))
+			size &= size - 1;
+
+		return max((uint64_t) 256, size * 2);
+	}
+
+	void allocate(size_t size)
+	{
+		arr.clear();
+		no_elements = 0;
+
+		allocated = normalize_size(size);
+		
+		arr.resize(allocated / 64, 0);
+
+		mask_shift = 6 * no_hashes;
+		mask = (allocated / 64 - 1) << mask_shift;
+	}
+
+	void insert_impl(uint64_t x)
+	{
+		uint64_t h = mmh(x);
+
+		uint64_t pos = (h & mask) >> mask_shift;
+
+		arr[pos] |=	(1ull << (h & 63)) | (1ull << ((h >> 6) & 63)) | (1ull << ((h >> 12) & 63));
+//		arr[pos] |=	(1ull << (h & 63)) | (1ull << ((h >> 6) & 63));
+
+		++no_elements;
+	}
+
+public:
+	bloom_set_t(size_t size = 64)
+	{
+		allocate(size);
+	}
+
+	void resize(size_t size)
+	{
+		allocate(size);
+	}
+
+	template<typename Iter>
+	void insert(Iter begin, Iter end)
+	{
+		for (auto p = begin; p != end; ++p)
+			insert_impl(*p);
+	}
+
+	void insert(uint64_t x)
+	{
+		insert_impl(x);
+	}
+
+	bool check(uint64_t x)
+	{
+		uint64_t h = mmh(x);
+
+		uint64_t pos = (h & mask) >> mask_shift;
+
+		return (arr[pos] & (1ull << (h & 63))) && (arr[pos] & (1ull << ((h >> 6) & 63))) && (arr[pos] & (1ull << ((h >> 12) & 63)));
+//		return (arr[pos] & (1ull << (h & 63))) && (arr[pos] & (1ull << ((h >> 6) & 63)));
+	}
+
+	double filling_factor()
+	{
+		return (double)no_hashes * no_elements / allocated;
 	}
 };
 

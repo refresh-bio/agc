@@ -1,0 +1,422 @@
+name: linux self-hosted CI
+
+on:
+  push:
+      paths-ignore:
+      - '**.md'
+  pull_request:
+    branches: [ master ]
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+jobs:
+  checkout:
+    runs-on: [linux-self-hosted, agc]
+    steps:
+    - uses: actions/checkout@v3
+
+
+  make-tests:
+    name: Make tests
+    runs-on: [linux-self-hosted , agc]
+    needs: checkout
+    env: 
+      EXE: ./agc
+    steps:           
+    - name: make (g++ 9)
+      run: |
+        make clean
+        make CXX=g++-9 agc
+        make clean
+        
+    - name: make (g++ 10)
+      run: |
+        make CXX=g++-10 agc
+        make clean
+        
+    - name: make (g++ 11)
+      run: |
+        make CXX=g++-11 agc
+        make clean
+        
+    - name: make (default)
+      run: |
+        make agc
+      
+    - name: Print usage
+      run: |
+        $EXE --help
+    
+ 
+  
+  ########################################################################################  
+  
+  camp-tests:
+    name: mini CAMP tests
+    runs-on: [linux-self-hosted , agc]
+    needs: make-tests
+    env: 
+     EXE: ./agc
+     DATA: ../../../../data/
+     FASTA: camp/FASTA-GZ
+     OUT_NAME: test-camp
+     REF_NUM: 3
+     LINE_LEN: 60
+    
+    steps:      
+        
+    - name: camp all together
+      run: |
+        cp agc $DATA/
+        cd $DATA
+        rm -rf $OUT_NAME-all
+        ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN
+        rm -rf $OUT_NAME-all
+
+    - name: camp one by one 
+      run: |
+        cp agc $DATA/
+        cd $DATA
+        rm -rf $OUT_NAME-1by1
+        ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN
+        rm -rf $OUT_NAME-1by1
+
+        
+  ########################################################################################  
+  
+  
+  camp-tests-params:
+    name: mini CAMP tests params
+    runs-on: [linux-self-hosted, agc]
+    needs: camp-tests
+    env: 
+     EXE: ./agc
+     DATA: ../../../../data/
+     FASTA: camp/FASTA-GZ
+     OUT_NAME: test-camp
+     REF_NUM: 2
+     LINE_LEN: 60
+     PARAMS: "-a -b 50000 -k 17 -l 15 -s 1000" 
+     ADAPTIVE_APPEND: 1
+    
+    steps:      
+        
+ 
+        
+    - name: camp all together PAR $PARAMS 
+      run: |
+        cp agc $DATA/
+        cd $DATA
+        rm -rf $OUT_NAME-all
+        ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN $PARAMS
+        rm -rf $OUT_NAME-all
+
+    - name: camp one by one $PARAMS
+      run: |
+        cp agc $DATA/
+        cd $DATA
+        rm -rf $OUT_NAME-1by1
+        ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN $ADAPTIVE_APPEND $PARAMS
+        rm -rf $OUT_NAME-1by1
+
+        
+  ########################################################################################  
+  
+  salmo-tests:
+    name: mini SALMO tests
+    runs-on: [linux-self-hosted, agc]
+    needs: make-tests
+    env: 
+     EXE: ./agc
+     DATA: ../../../../data/
+     FASTA: salmo/FASTA-GZ
+     OUT_NAME: test-salmo
+     REF_NUM: 5
+     LINE_LEN: 60
+     ADAPTIVE_APPEND: 0
+    
+    steps:      
+        
+    - name: salmo all together
+      run: |
+        cp agc $DATA/
+        cd $DATA
+        rm -rf $OUT_NAME-all
+        ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN
+        rm -rf $OUT_NAME-all
+
+        
+    - name: salmo one by one 
+      run: |
+        cp agc $DATA/
+        cd $DATA
+        rm -rf $OUT_NAME-1by1
+        ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN $ADAPTIVE_APPEND
+        rm -rf $OUT_NAME-1by1
+
+  ########################################################################################
+  
+  salmo-tests-params:
+    name: mini SALMO tests params
+    runs-on: [linux-self-hosted, agc]
+    needs: salmo-tests
+    env: 
+     EXE: ./agc
+     DATA: ../../../../data/
+     FASTA: salmo/FASTA-GZ
+     OUT_NAME: test-salmo
+     REF_NUM: 5
+     LINE_LEN: 60
+     PARAMS: "-a -b 1000000000 -k 32 -l 32 -s 1000000" 
+     ADAPTIVE_APPEND: 1
+    
+    steps:      
+        
+    - name: salmo all together
+      run: |
+        cp agc $DATA/
+        cd $DATA
+        rm -rf $OUT_NAME-all
+        ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN $PARAMS
+        rm -rf $OUT_NAME-all
+
+    - name: salmo one by one
+      run: |
+        cp agc $DATA/
+        cd $DATA
+        rm -rf $OUT_NAME-1by1
+        ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN $ADAPTIVE_APPEND $PARAMS
+        rm -rf $OUT_NAME-1by1
+
+  ########################################################################################  
+  
+  covid-tests:
+    name: mini covid tests
+    runs-on: [linux-self-hosted, agc]
+    needs: make-tests
+    env: 
+     EXE: ./agc
+     DATA: ../../../../data/
+     REF: covid/covid_ref.fa
+     FASTA: covid/covid_rest_mini.fa
+     FASTA2: covid/covid_rest_append.fa
+     OUT_NAME: test-covid
+     LINE_LEN: 70
+     SET_LIST: list
+     
+         
+    steps:      
+        
+    - name: covid all together create + getcol
+      run: |
+        cp agc $DATA/
+        cd $DATA
+        rm -rf $OUT_NAME
+        mkdir $OUT_NAME
+        $EXE create -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
+        $EXE getcol -l $LINE_LEN -o $OUT_NAME -t 32 $OUT_NAME/$OUT_NAME.agc
+        cd $OUT_NAME
+        for f in *fa; do md5sum $f >> md5_all; done
+        cmp md5_all ../covid/md5_all
+        cd ..
+        rm -rf $OUT_NAME
+
+    - name: covid all together create -a + getset
+      run: |
+        cp agc $DATA/
+        cd $DATA
+        rm -rf $OUT_NAME
+        mkdir $OUT_NAME
+        $EXE create -a -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
+        $EXE listset $OUT_NAME/$OUT_NAME.agc > $OUT_NAME/$SET_LIST
+        NUM_SMPL=`cat $OUT_NAME/$SET_LIST | wc -l`
+        for ((i=1; i<=$NUM_SMPL; i++))
+        do 
+          echo $i
+          SMPL=`sed " $i q;d" $OUT_NAME/$SET_LIST`
+          echo "./agc getset -l $LINE_LEN $OUT_NAME/$OUT_NAME.agc $SMPL > $OUT_NAME/$SMPL.fa"
+          $EXE getset -l $LINE_LEN $OUT_NAME/$OUT_NAME.agc $SMPL > $OUT_NAME/$SMPL.fa
+        done
+        cd $OUT_NAME
+        for f in *fa; do md5sum $f >> md5_all; done
+        cmp md5_all ../covid/md5_all
+        cd ..
+        rm -rf $OUT_NAME
+
+    - name: covid all together create -a + append + getset
+      run: |
+        cp agc $DATA/
+        cd $DATA
+        rm -rf $OUT_NAME
+        mkdir $OUT_NAME
+        $EXE create -a -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
+        $EXE append -a -c  $OUT_NAME/$OUT_NAME.agc $FASTA2 > $OUT_NAME/$OUT_NAME-APPEND.agc
+        $EXE listset $OUT_NAME/$OUT_NAME-APPEND.agc > $OUT_NAME/$SET_LIST
+        NUM_SMPL=`cat $OUT_NAME/$SET_LIST | wc -l`
+        for ((i=1; i<=$NUM_SMPL; i++))
+        do 
+          echo $i
+          SMPL=`sed " $i q;d" $OUT_NAME/$SET_LIST`
+          echo "./agc getset -l $LINE_LEN $OUT_NAME/$OUT_NAME-APPEND.agc $SMPL > $OUT_NAME/$SMPL.fa"
+          $EXE getset -l $LINE_LEN $OUT_NAME/$OUT_NAME-APPEND.agc $SMPL > $OUT_NAME/$SMPL.fa
+        done
+        cd $OUT_NAME
+        for f in *fa; do md5sum $f >> md5_all; done
+        cmp md5_all ../covid/md5_all_append
+        cd ..
+        rm -rf $OUT_NAME
+
+  ########################################################################################
+  
+  covid-tests-params:
+    name: mini covid tests params
+    runs-on: [linux-self-hosted, agc]
+    needs: covid-tests
+    env: 
+     EXE: ./agc
+     DATA: ../../../../data/
+     REF: covid/covid_ref.fa
+     FASTA: covid/covid_rest_mini.fa
+     FASTA2: covid/covid_rest_append.fa
+     OUT_NAME: test-covid
+     LINE_LEN: 70
+     SET_LIST: list
+     PARAMS: "-b 1000000000 -k 32 -l 32 -s 1000000" 
+     
+         
+    steps:      
+        
+    - name: covid all together create + getcol
+      run: |
+        cp agc $DATA/
+        cd $DATA
+        rm -rf $OUT_NAME
+        mkdir $OUT_NAME
+        $EXE create $PARAMS -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
+        $EXE getcol -l $LINE_LEN -o $OUT_NAME -t 32 $OUT_NAME/$OUT_NAME.agc
+        cd $OUT_NAME
+        for f in *fa; do md5sum $f >> md5_all; done
+        cmp md5_all ../covid/md5_all
+        cd ..
+        rm -rf $OUT_NAME
+
+                    
+  
+  ########################################################################################  
+  
+  hprc-tests:
+    name: mini HPRC tests
+    runs-on: [linux-self-hosted, agc]
+    needs: [camp-tests-params, salmo-tests-params, covid-tests-params]
+    env: 
+     EXE: ./agc
+     DATA: ../../../../data/
+     FASTA: hprc/FASTA-GZ
+     OUT_NAME: test-hprc
+     REF_NUM: 1
+     LINE_LEN: 80
+     ADAPTIVE_APPEND: 0
+    
+    steps:      
+        
+    - name: hprc all together
+      run: |
+        cp agc $DATA/
+        cd $DATA
+        rm -rf $OUT_NAME-all
+        ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN
+        rm -rf $OUT_NAME-all
+
+    - name: hprc one by one
+      run: |
+        cp agc $DATA/
+        cd $DATA
+        rm -rf $OUT_NAME-1by1
+        ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN
+        rm -rf $OUT_NAME-1by1
+
+  ########################################################################################  
+  
+  hprc-tests-params:
+    name: mini HPRC tests params
+    runs-on: [linux-self-hosted, agc]
+    needs: [hprc-tests]
+    env: 
+     EXE: ./agc
+     DATA: ../../../../data/
+     FASTA: hprc/FASTA-GZ
+     OUT_NAME: test-hprc
+     REF_NUM: 1
+     LINE_LEN: 80
+     ADAPTIVE_APPEND: 1
+     PARAMS: "-a -b 1000000000 -k 21 -l 32 -s 1000000" 
+
+    
+    steps:      
+        
+    - name: hprc all together
+      run: |
+        cp agc $DATA/
+        cd $DATA
+        rm -rf $OUT_NAME-all
+        ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN $PARAMS
+        rm -rf $OUT_NAME-all
+
+    - name: hprc one by one
+      run: |
+        cp agc $DATA/
+        cd $DATA
+        rm -rf $OUT_NAME-1by1
+        ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN $ADAPTIVE_APPEND $PARAMS
+        rm -rf $OUT_NAME-1by1
+
+  ########################################################################################
+  
+  hgsvc-tests-all:
+    name: mini HGSVC tests
+    runs-on: [linux-self-hosted, agc]
+    needs: [hprc-tests-params]
+    env:
+     EXE: ./agc
+     DATA: ../../../../data/
+     FASTA: hgsvc/FASTA-GZ
+     OUT_NAME: test-hgsvc
+     REF_NUM: 1
+     LINE_LEN: 60
+    
+    steps:
+        
+    - name: hgsvc all together
+      run: |
+        cp agc $DATA/
+        cd $DATA
+        rm -rf $OUT_NAME-all
+        ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN
+        rm -rf $OUT_NAME-all
+
+  ########################################################################################
+  
+  hgsvc-tests-append:
+    name: mini HGSVC tests
+    runs-on: [linux-self-hosted, agc]
+    needs: [hprc-tests-params]
+    env:
+     EXE: ./agc
+     DATA: ../../../../data/
+     FASTA: hgsvc/FASTA-GZ
+     OUT_NAME: test-hgsvc
+     REF_NUM: 1
+     LINE_LEN: 60
+    
+    steps:
+        
+ 
+    - name: hgsvc one by one
+      run: |
+        cp agc $DATA/
+        cd $DATA
+        rm -rf $OUT_NAME-1by1
+        ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN
+        rm -rf $OUT_NAME-1by1
+

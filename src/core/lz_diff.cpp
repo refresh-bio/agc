@@ -4,8 +4,8 @@
 //
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.1
-// Date   : 2022-05-06
+// Version: 3.0
+// Date   : 2022-12-22
 // *******************************************************************************************
 
 #include "../core/lz_diff.h"
@@ -17,6 +17,7 @@ CLZDiffBase::CLZDiffBase(const uint32_t _min_match_len)
 {
 	min_match_len = _min_match_len;
 	key_len = min_match_len - hashing_step + 1u;
+	key_mask = ~0ull >> (64 - 2 * key_len);
 	short_ht_ver = false;
 	ht_mask = 0;
 	ht_size = 0;
@@ -36,6 +37,7 @@ bool CLZDiffBase::SetMinMatchLen(const uint32_t _min_match_len)
 
 	min_match_len = _min_match_len;
 	key_len = min_match_len - hashing_step + 1u;
+	key_mask = ~0ull >> (64 - 2 * key_len);
 
 	return true;
 }
@@ -118,6 +120,10 @@ void CLZDiffBase::prepare_index()
 		ht_size &= ht_size - 1;
 
 	ht_size <<= 1;
+
+	if (ht_size < 8)
+		ht_size = 8;
+
 	ht_mask = ht_size - 1;
 
 	if (short_ht_ver)
@@ -163,9 +169,17 @@ void CLZDiffBase::GetCodingCostVector(const contig_t& text, vector<uint32_t>& v_
 	uint32_t no_prev_literals = 0;
 #endif
 
+	uint64_t x;
+	uint64_t x_prev = ~0ull;
+
 	for (; i + key_len < text_size; )
 	{
-		uint64_t x = get_code(text_ptr);
+		if (x_prev != ~0ull && no_prev_literals > 0)
+			x = get_code_skip1(x_prev, text_ptr);
+		else
+			x = get_code(text_ptr);
+		x_prev = x;
+
 		if (x == ~0ull)
 		{
 			uint32_t Nrun_len = get_Nrun_len(text_ptr, text_size - i);
@@ -216,7 +230,6 @@ void CLZDiffBase::GetCodingCostVector(const contig_t& text, vector<uint32_t>& v_
 			!find_best_match32((uint32_t)ht_pos, text_ptr, max_len, no_prev_literals, match_pos, len_bck, len_fwd))
 		{
 			v_costs.emplace_back(1);
-			//			encode_literal(*text_ptr, encoded);
 			++i;
 			++text_ptr;
 			++pred_pos;
@@ -273,6 +286,8 @@ bool CLZDiffBase::find_best_match16(uint32_t ht_pos, const uint8_t* s, const uin
 	len_fwd = 0;
 	len_bck = 0;
 
+	uint32_t min_to_update = min_match_len;
+
 	const uint8_t* ref_ptr = reference.data();
 
 	for (uint32_t i = 0; i < max_no_tries; ++i)
@@ -280,25 +295,26 @@ bool CLZDiffBase::find_best_match16(uint32_t ht_pos, const uint8_t* s, const uin
 		if (ht16[ht_pos] == empty_key16)
 			break;
 
-		uint32_t f_len = 0;
 		uint32_t h_pos = ht16[ht_pos] * hashing_step;
-
 		const uint8_t* p = ref_ptr + h_pos;
 
-		for (; f_len < max_len; ++f_len)
-			if (s[f_len] != p[f_len])
-				break;
+		uint32_t f_len = compare_fwd((uint8_t*)s, (uint8_t*)p, max_len);
 
-		uint32_t b_len = 0;
-		for (; b_len < min(no_prev_literals, h_pos); ++b_len)
-			if (*(s - b_len - 1) != *(p - b_len - 1))
-				break;
-
-		if (b_len + f_len > len_bck + len_fwd)
+		if (f_len >= key_len)
 		{
-			len_bck = b_len;
-			len_fwd = f_len;
-			ref_pos = h_pos;
+			uint32_t b_len = 0;
+			for (; b_len < min(no_prev_literals, h_pos); ++b_len)
+				if (*(s - b_len - 1) != *(p - b_len - 1))
+					break;
+
+			if (b_len + f_len > min_to_update)
+			{
+				len_bck = b_len;
+				len_fwd = f_len;
+				ref_pos = h_pos;
+
+				min_to_update = b_len + f_len;
+			}
 		}
 
 		ht_pos = (uint32_t)((ht_pos + 1u) & ht_mask);
@@ -314,6 +330,8 @@ bool CLZDiffBase::find_best_match32(uint32_t ht_pos, const uint8_t* s, const uin
 	len_fwd = 0;
 	len_bck = 0;
 
+	uint32_t min_to_update = min_match_len;
+
 	const uint8_t* ref_ptr = reference.data();
 
 	for (uint32_t i = 0; i < max_no_tries; ++i)
@@ -321,72 +339,32 @@ bool CLZDiffBase::find_best_match32(uint32_t ht_pos, const uint8_t* s, const uin
 		if (ht32[ht_pos] == empty_key32)
 			break;
 
-		uint32_t f_len = 0;
 		uint32_t h_pos = ht32[ht_pos] * hashing_step;
 		const uint8_t* p = ref_ptr + h_pos;
 
-		for (; f_len < max_len; ++f_len)
-			if (s[f_len] != p[f_len])
-				break;
+		uint32_t f_len = compare_fwd((uint8_t*)s, (uint8_t*)p, max_len);
 
-		uint32_t b_len = 0;
-		for (; b_len < min(no_prev_literals, h_pos); ++b_len)
-			if (*(s - b_len - 1) != *(p - b_len - 1))
-				break;
-
-		if (b_len + f_len > len_bck + len_fwd)
+		if (f_len >= key_len)
 		{
-			len_bck = b_len;
-			len_fwd = f_len;
-			ref_pos = h_pos;
+			uint32_t b_len = 0;
+			for (; b_len < min(no_prev_literals, h_pos); ++b_len)
+				if (*(s - b_len - 1) != *(p - b_len - 1))
+					break;
+
+			if (b_len + f_len > min_to_update)
+			{
+				len_bck = b_len;
+				len_fwd = f_len;
+				ref_pos = h_pos;
+
+				min_to_update = b_len + f_len;
+			}
 		}
 
 		ht_pos = (uint32_t) ((ht_pos + 1u) & ht_mask);
 	}
 
 	return len_bck + len_fwd >= min_match_len;
-}
-
-// *******************************************************************************************
-void CLZDiffBase::append_int(contig_t& text, int64_t x)
-{
-	if (x == 0)
-	{
-		text.emplace_back('0');
-		return;
-	}
-
-	if (x < 0)
-	{
-		text.push_back('-');
-		x = -x;
-	}
-
-	contig_t tmp;
-
-	for (; x; x /= 10)
-		tmp.emplace_back((uint8_t) ('0' + (x % 10)));
-
-	text.insert(text.end(), tmp.rbegin(), tmp.rend());
-}
-
-// *******************************************************************************************
-void CLZDiffBase::read_int(contig_t::const_iterator& p, int64_t& x)
-{
-	bool is_neg = false;
-	x = 0;
-
-	if (*p == '-')
-	{
-		is_neg = true;
-		++p;
-	}
-
-	while(*p >= '0' && *p <= '9')
-		x = x * 10 + (int64_t)(*p++ - '0');
-
-	if (is_neg)
-		x = -x;
 }
 
 // *******************************************************************************************
@@ -407,7 +385,6 @@ void CLZDiffBase::encode_literal_diff(const uint8_t c, const uint8_t r, contig_t
 		else
 			encoded.push_back(c - r);
 	}
-
 }
 
 // *******************************************************************************************
@@ -494,14 +471,63 @@ uint64_t CLZDiffBase::get_code(const uint8_t* s) const
 {
 	uint64_t x = 0;
 
-	for (uint32_t i = 0; i < key_len; ++i, ++s)
+	uint32_t i = key_len % 4;
+
+	switch (i)
+	{
+	case 3: 
+		if (*s > 3)
+			return ~0ull;
+		x = (x << 2) + (uint64_t)*s++;
+	case 2: 
+		if (*s > 3)
+			return ~0ull;
+		x = (x << 2) + (uint64_t)*s++;
+	case 1: 
+		if (*s > 3)
+			return ~0ull;
+		x = (x << 2) + (uint64_t)*s++;
+	}
+
+	for (; i < key_len; )
 	{
 		if (*s > 3)
 			return ~0ull;
 		x = (x << 2) + (uint64_t) *s;
+		++i; ++s;
+
+		if (*s > 3)
+			return ~0ull;
+		x = (x << 2) + (uint64_t)*s;
+		++i; ++s;
+
+		if (*s > 3)
+			return ~0ull;
+		x = (x << 2) + (uint64_t)*s;
+		++i; ++s;
+
+		if (*s > 3)
+			return ~0ull;
+		x = (x << 2) + (uint64_t)*s;
+		++i; ++s;
 	}
 
 	return x;
+}
+
+// *******************************************************************************************
+uint64_t CLZDiffBase::get_code_skip1(uint64_t code, const uint8_t* s) const
+{
+	s += key_len - 1;
+
+	if (*s > 3)
+		return ~0ull;
+
+	code = (code << 2) & key_mask;
+
+	code += *s;
+
+	return code;
 }
 
 // *******************************************************************************************
@@ -631,8 +657,6 @@ void CLZDiff_V1::Encode(const contig_t& text, contig_t& encoded)
 	const uint8_t* text_ptr = text.data();
 
 #ifdef USE_SPARSE_HT
-//	const uint32_t thr_literal_len = 1000;
-
 	uint32_t no_prev_literals = 0;
 #endif
 
@@ -650,8 +674,6 @@ void CLZDiff_V1::Encode(const contig_t& text, contig_t& encoded)
 				text_ptr += Nrun_len;
 				i += Nrun_len;
 #ifdef USE_SPARSE_HT
-				/*				if (no_prev_literals > thr_literal_len)
-									cerr << "literal len: " + to_string(no_prev_literals) + "    \n";*/
 				no_prev_literals = 0;
 #endif
 			}
@@ -712,9 +734,6 @@ void CLZDiff_V1::Encode(const contig_t& text, contig_t& encoded)
 			text_ptr += len_bck + len_fwd;
 
 #ifdef USE_SPARSE_HT
-			/*			if (no_prev_literals > thr_literal_len)
-							cerr << "litera len: " + to_string(no_prev_literals) + "     \n";*/
-
 			no_prev_literals = 0;
 #endif
 		}
@@ -722,6 +741,16 @@ void CLZDiff_V1::Encode(const contig_t& text, contig_t& encoded)
 
 	for (; i < text_size; ++i)
 		encode_literal(text[i], encoded);
+}
+
+// *******************************************************************************************
+size_t CLZDiff_V1::Estimate(const contig_t& text, uint32_t bound)
+{
+	contig_t tmp;
+
+	Encode(text, tmp);
+
+	return tmp.size();
 }
 
 // *******************************************************************************************
@@ -810,6 +839,8 @@ void CLZDiff_V2::Encode(const contig_t& text, contig_t& encoded)
 		if (equal(text.begin(), text.end(), reference.begin()))
 			return;														// equal sequences
 
+	encoded.reserve(text.size() / 64);
+
 	MurMur64Hash mmh;
 
 	uint32_t i = 0;
@@ -818,14 +849,19 @@ void CLZDiff_V2::Encode(const contig_t& text, contig_t& encoded)
 	const uint8_t* text_ptr = text.data();
 
 #ifdef USE_SPARSE_HT
-//	const uint32_t thr_literal_len = 1000;
-
 	uint32_t no_prev_literals = 0;
 #endif
 
+	uint64_t x_prev = ~0ull;
+	uint64_t x;
+
 	for (; i + key_len < text_size; )
 	{
-		uint64_t x = get_code(text_ptr);
+		if (x_prev != ~0ull && no_prev_literals > 0)
+			x = get_code_skip1(x_prev, text_ptr);
+		else
+			x = get_code(text_ptr);
+		x_prev = x;
 
 		if (x == ~0ull)
 		{
@@ -837,8 +873,6 @@ void CLZDiff_V2::Encode(const contig_t& text, contig_t& encoded)
 				text_ptr += Nrun_len;
 				i += Nrun_len;
 #ifdef USE_SPARSE_HT
-				/*				if (no_prev_literals > thr_literal_len)
-									cerr << "literal len: " + to_string(no_prev_literals) + "    \n";*/
 				no_prev_literals = 0;
 #endif
 			}
@@ -914,9 +948,6 @@ void CLZDiff_V2::Encode(const contig_t& text, contig_t& encoded)
 			text_ptr += len_bck + len_fwd;
 
 #ifdef USE_SPARSE_HT
-			/*			if (no_prev_literals > thr_literal_len)
-							cerr << "litera len: " + to_string(no_prev_literals) + "     \n";*/
-
 			no_prev_literals = 0;
 #endif
 		}
@@ -962,6 +993,116 @@ void CLZDiff_V2::Decode(const contig_t& reference, const contig_t& encoded, cont
 			pred_pos = ref_pos + len;
 		}
 	}
+}
+
+// *******************************************************************************************
+size_t CLZDiff_V2::Estimate(const contig_t& text, uint32_t bound)
+{
+	if (!index_ready)
+		prepare_index();
+
+	uint32_t text_size = (uint32_t)text.size();
+
+	uint32_t est_cost = 0;
+
+	if (text_size == reference.size() - key_len)
+		if (equal(text.begin(), text.end(), reference.begin()))
+			return 0;														// equal sequences
+
+	MurMur64Hash mmh;
+
+	uint32_t i = 0;
+	uint32_t pred_pos = 0;
+
+	const uint8_t* text_ptr = text.data();
+
+#ifdef USE_SPARSE_HT
+	uint32_t no_prev_literals = 0;
+#endif
+
+	uint64_t x_prev = ~0ull;
+	uint64_t x;
+
+	for (; i + key_len < text_size; )
+	{
+		if (est_cost > bound)
+			return est_cost;
+
+		if (x_prev != ~0ull && no_prev_literals > 0)
+			x = get_code_skip1(x_prev, text_ptr);
+		else
+			x = get_code(text_ptr);
+		x_prev = x;
+
+		if (x == ~0ull)
+		{
+			uint32_t Nrun_len = get_Nrun_len(text_ptr, text_size - i);
+
+			if (Nrun_len >= min_Nrun_len)
+			{
+				est_cost += cost_Nrun(Nrun_len);
+				text_ptr += Nrun_len;
+				i += Nrun_len;
+#ifdef USE_SPARSE_HT
+				no_prev_literals = 0;
+#endif
+			}
+			else
+			{
+				++est_cost;
+
+				++i;
+				++pred_pos;
+				++text_ptr;
+#ifdef USE_SPARSE_HT
+				++no_prev_literals;
+#endif
+			}
+
+			continue;
+		}
+
+		uint64_t ht_pos = mmh(x) & ht_mask;
+
+		uint32_t len_bck = 0;
+		uint32_t len_fwd = 0;
+		uint32_t match_pos = 0;
+		uint32_t max_len = text_size - i;
+
+		if (short_ht_ver ?
+			!find_best_match16((uint32_t)ht_pos, text_ptr, max_len, no_prev_literals, match_pos, len_bck, len_fwd) :
+			!find_best_match32((uint32_t)ht_pos, text_ptr, max_len, no_prev_literals, match_pos, len_bck, len_fwd))
+		{
+			++est_cost;
+
+			++i;
+			++text_ptr;
+			++pred_pos;
+#ifdef USE_SPARSE_HT
+			++no_prev_literals;
+#endif
+			continue;
+		}
+		else
+		{
+			if (i + len_bck + len_fwd == text_size && match_pos + len_bck + len_fwd == reference.size() - key_len)			// is match to end of sequence?
+				est_cost += cost_match(match_pos, ~0u, pred_pos);
+			else
+				est_cost += cost_match(match_pos, len_bck + len_fwd, pred_pos);
+
+			pred_pos = match_pos + len_bck + len_fwd;
+			i += len_bck + len_fwd;
+			text_ptr += len_bck + len_fwd;
+
+#ifdef USE_SPARSE_HT
+			no_prev_literals = 0;
+#endif
+		}
+	}
+
+	est_cost += text_size - i;
+
+	return est_cost;
 }
 
 // EOL

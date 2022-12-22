@@ -1,13 +1,13 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <LocalDebuggerCommandArguments>append -d -v2 -a -o camp200a.agc -i camp_101_200.txt camp100.agc</LocalDebuggerCommandArguments>
-    <LocalDebuggerWorkingDirectory>j:\661k</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerCommandArguments>getset -t 32 -l 60 -o h2.fa x.agc  v12_HG00096_hgsvc_pbsq2-clr_1000-flye.h2-un.arrow-p1</LocalDebuggerCommandArguments>
+    <LocalDebuggerWorkingDirectory>K:\HGSVC2\phased</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LocalDebuggerCommandArguments>append -o toy1.agc -d toy0.agc a.fa</LocalDebuggerCommandArguments>
-    <LocalDebuggerWorkingDirectory>k:\hpp\toy</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerCommandArguments>getset -t 32 -l 60 -o h2.fa x.agc  v12_HG00096_hgsvc_pbsq2-clr_1000-flye.h2-un.arrow-p1</LocalDebuggerCommandArguments>
+    <LocalDebuggerWorkingDirectory>K:\HGSVC2\phased</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
 </Project>
