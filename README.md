@@ -268,5 +268,6 @@ Archives of 94 haplotype human assemblies <a href="https://github.com/human-pang
   
 ## Citing
 S. Deorowicz, A. Danek, H. Li,
-AGC: Compact representation of assembled genomes.
-Preprint: https://doi.org/10.1101/2022.04.07.487441 (2022).
+AGC: Compact representation of assembled genomes with fast queries and updates.
+Bioinformatics, btad097 (2023)
+https://doi.org/10.1093/bioinformatics/btad097
