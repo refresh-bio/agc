@@ -493,7 +493,7 @@ bool CApplication::parse_params_info(const int argc, const char** argv)
 // *******************************************************************************************
 bool CApplication::load_file_names(const string &fn, vector<string>& v_file_names)
 {
-    fstream inf(fn);
+    fstream inf(fn, ios::in);
 
     if (!inf.is_open())
     {
