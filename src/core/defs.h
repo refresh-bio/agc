@@ -13,6 +13,7 @@
 
 #include <string>
 #include <vector>
+#include <cstdint>
 using namespace std;
 
 typedef vector<uint8_t> contig_t;
