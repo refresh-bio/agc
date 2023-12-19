@@ -1577,6 +1577,8 @@ bool CAGCCompressor::AddSampleFiles(vector<pair<string, string>> _v_sample_file_
     if (concatenated_genomes)
         cnt_contigs_in_sample = processed_samples % pack_cardinality;
 
+    size_t num_empty_input = 0; // Exclude input files that don't have any contigs
+
     for(auto sf : _v_sample_file_name)
     {
         if (archive_version >= 3000)
@@ -1592,6 +1594,7 @@ bool CAGCCompressor::AddSampleFiles(vector<pair<string, string>> _v_sample_file_
             ;
         }
 
+	bool any_contigs_read = false;
         while (gio.ReadContigRaw(id, contig))
         {
             if (concatenated_genomes)
@@ -1621,9 +1624,14 @@ bool CAGCCompressor::AddSampleFiles(vector<pair<string, string>> _v_sample_file_
                 else
                     cerr << "Error: Pair sample_name:contig_name " << sf.first << ":" << id << " is already in the archive!\n";
             }
+	    any_contigs_read = true;
         }
+	if (!any_contigs_read) {
+	    cerr << "Warning: Pair sample_name:file_path " << sf.first << ":" << sf.second << " contains no contigs and will not be included in the archive!\n";
+	    ++num_empty_input;
+	}
 
-        if (!concatenated_genomes)
+        if (!concatenated_genomes && any_contigs_read)
         {
             // Send synchronization tokens
             for (uint32_t i = 0; i < no_workers; ++i)
@@ -1665,7 +1673,7 @@ bool CAGCCompressor::AddSampleFiles(vector<pair<string, string>> _v_sample_file_
     pq_contigs_desc_aux.reset();
     pq_contigs_desc_working.reset();
 
-    no_samples_in_archive += _v_sample_file_name.size();
+    no_samples_in_archive += _v_sample_file_name.size() - num_empty_input;
 
     return true;
 }
