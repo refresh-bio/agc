@@ -5,10 +5,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.0
-// Date   : 2022-12-22
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
 #include <regex>
@@ -90,7 +90,6 @@ protected:
 	void convert_to_alpha(contig_t& ctg);
 
 	bool analyze_contig_query(const string& query, string& sample, name_range_t& name_range);
-	void start_decompressing_threads(vector<thread>& v_threads, const uint32_t n_t, bool converted_to_alpha);
 	bool decompress_segment(const uint32_t group_id, const uint32_t in_group_id, contig_t& ctg, ZSTD_DCtx* zstd_ctx);
 
 	bool decompress_contig(contig_task_t& task, ZSTD_DCtx *zstd_ctx, contig_t& ctg);
@@ -105,6 +104,7 @@ public:
 
 	void GetCmdLines(vector<pair<string, string>>& _cmd_lines);
 	void GetParams(uint32_t& kmer_length, uint32_t& min_match_len, uint32_t& pack_cardinality);
+	void GetReferenceSample(string& ref_name);
 
 	bool Close();
 

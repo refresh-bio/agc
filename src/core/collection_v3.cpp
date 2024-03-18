@@ -2,10 +2,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.0
-// Date   : 2022-12-22
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
 #include "../core/collection_v3.h"
@@ -378,7 +378,7 @@ string CCollection_V3::encode_split(vector<string>& prev_split, vector<string>& 
 			enc.append(curr_split[i]);			
 		else
 		{
-			char cnt = 0;
+			signed char cnt = 0;
 			uint32_t cmp_len = curr_split[i].size();
 
 			auto p_ptr = prev_split[i].data();
@@ -428,18 +428,17 @@ string CCollection_V3::decode_split(vector<string>& prev_split, vector<string>& 
 
 	for (size_t i = 0; i < curr_split.size(); ++i)
 	{
-		if (curr_split[i].size() == 1 && curr_split[i].front() == -127)		// same component marker
+		if (curr_split[i].size() == 1 && (signed char) (curr_split[i].front()) == -127)		// same component marker
 		{
 			dec.append(prev_split[i]);
 			curr_split[i] = prev_split[i];
 		}
 		else
 		{
-//			uint32_t prev_idx = 0;
 			cmp.clear();
 			auto p_ptr = prev_split[i].data();
 
-			for (auto c : curr_split[i])
+			for (signed char c : curr_split[i])
 			{
 				if (c >= 0)
 				{

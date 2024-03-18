@@ -1,13 +1,13 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <LocalDebuggerCommandArguments>getset -t 32 -l 60 -o h2.fa x.agc  v12_HG00096_hgsvc_pbsq2-clr_1000-flye.h2-un.arrow-p1</LocalDebuggerCommandArguments>
-    <LocalDebuggerWorkingDirectory>K:\HGSVC2\phased</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerCommandArguments>getcol -g 4 -o dec/ -v 1 hpp_small.agc</LocalDebuggerCommandArguments>
+    <LocalDebuggerWorkingDirectory>j:\agc</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LocalDebuggerCommandArguments>getset -t 32 -l 60 -o h2.fa x.agc  v12_HG00096_hgsvc_pbsq2-clr_1000-flye.h2-un.arrow-p1</LocalDebuggerCommandArguments>
-    <LocalDebuggerWorkingDirectory>K:\HGSVC2\phased</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerCommandArguments>create -o test-camp-1.agc -v 2 -t 1 -i fl1 camp-gz/SAMEA1010245.contigs.fa</LocalDebuggerCommandArguments>
+    <LocalDebuggerWorkingDirectory>j:\agc</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
 </Project>

@@ -5,10 +5,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.0
-// Date   : 2022-12-22
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
 #include "collection.h"
@@ -41,6 +41,14 @@ class CCollection_V3 : public CCollection
 
 			return *this;
 		}
+
+		contig_desc_t& operator=(contig_desc_t&& x) noexcept
+		{
+			name = move(x.name);
+			segments = move(x.segments);
+
+			return *this;
+		}
 	};
 
 	struct sample_desc_t {
@@ -66,6 +74,13 @@ class CCollection_V3 : public CCollection
 
 			return *this;
 		}
+
+		sample_desc_t& operator=(sample_desc_t&& x) noexcept {
+			name = move(x.name);
+			contigs = move(x.contigs);
+
+			return *this;
+		}
 	};
 
 	ZSTD_CCtx* zstd_cctx_samples = nullptr;
@@ -76,7 +91,7 @@ class CCollection_V3 : public CCollection
 	ZSTD_DCtx* zstd_dctx_contigs = nullptr;
 	array<ZSTD_DCtx*, 5> zstd_dctx_details = { nullptr, nullptr, nullptr, nullptr, nullptr };
 
-	unordered_map<string, uint32_t> sample_ids;
+	unordered_map<string, uint32_t, MurMurStringsHash> sample_ids;
 	vector<sample_desc_t> sample_desc;
 
 	int unpacked_contig_data_batch_id = -1;
@@ -203,6 +218,10 @@ public:
 
 		placing_sample_id = ~0u;
 		placing_sample_name = "";
+
+		kmer_length = 0;
+		no_samples_in_last_batch = 0;
+		segment_size = 0;
 	}
 	virtual ~CCollection_V3() {
 		if (zstd_cctx_samples)	ZSTD_freeCCtx(zstd_cctx_samples);

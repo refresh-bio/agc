@@ -2,10 +2,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.0
-// Date   : 2022-12-22
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
 #include <numeric>
@@ -14,8 +14,22 @@
 #include "../core/agc_compressor.h"
 #include "../core/agc_decompressor.h"
 
-#ifndef _DEBUG
-#include "../../libs/raduls.h"
+#include <execution>
+
+#ifdef _DEBUG
+#define NO_RADULS
+#endif
+
+//#define NO_RADULS
+#define SINGLE_THR_SORT
+
+#ifndef NO_RADULS
+#include <raduls.h>
+#else
+namespace raduls
+{
+    constexpr uint32_t ALIGNMENT = 1024;
+}
 #endif
 
 using namespace std;
@@ -201,9 +215,23 @@ void CAGCCompressor::store_metadata(uint32_t no_threads)
         append64(v_tmp, x);
     auto splitters_id = out_archive->RegisterStream("splitters");
     out_archive->AddPart(splitters_id, v_tmp, hs_splitters.size());
+    v_hs_splitters.clear();
+    v_hs_splitters.shrink_to_fit();
+
+    uint32_t no_segments_one_side = 0;
+    vector<pair<pair<uint64_t, uint64_t>, uint32_t>> v_map_segments;
+    v_map_segments.reserve(map_segments.size());
+    for (auto& x : map_segments)
+    {
+        if (x.first.first == ~0ull || x.first.second == ~0ull)
+            ++no_segments_one_side;
+
+        v_map_segments.emplace_back(x);
+    }
+    sort(v_map_segments.begin(), v_map_segments.end());
 
     v_tmp.clear();
-    for (auto& x : map_segments)
+    for (auto& x : v_map_segments)
     {
         append64(v_tmp, x.first.first);
         append64(v_tmp, x.first.second);
@@ -211,11 +239,6 @@ void CAGCCompressor::store_metadata(uint32_t no_threads)
     }
     auto map_segments_id = out_archive->RegisterStream("segment-splitters");
     out_archive->AddPart(map_segments_id, v_tmp, map_segments.size());
-
-    uint32_t no_segments_one_side = 0;
-    for (auto& x : map_segments)
-        if (x.first.first == ~0ull || x.first.second == ~0ull)
-            ++no_segments_one_side;
 
     if (verbosity > 0 && is_app_mode)
     {
@@ -359,19 +382,11 @@ bool CAGCCompressor::determine_splitters(const string& reference_file_name, cons
     string id;
     contig_t contig;
 
-#ifndef _DEBUG
     v_candidate_kmers.resize(gio.FileSize() + raduls::ALIGNMENT / 8 + contig_part_size * (no_threads + 1) + 1, ~0ull);
 
     auto alignment_shift = ((uint64_t)v_candidate_kmers.data()) % raduls::ALIGNMENT;
 //    auto extra_items = raduls::ALIGNMENT / 8 - alignment_shift / 8;
     v_candidate_kmers_offset = raduls::ALIGNMENT / 8 - alignment_shift / 8;
-#else
-    v_candidate_kmers.resize(gio.FileSize() + 256 / 8 + contig_part_size * (no_threads + 1) + 1, ~0ull);
-
-    auto alignment_shift = ((uint64_t)v_candidate_kmers.data()) % 256;
-    //    auto extra_items = raduls::ALIGNMENT / 8 - alignment_shift / 8;
-    v_candidate_kmers_offset = 256 / 8 - alignment_shift / 8;
-#endif
 
     if (verbosity > 0 && is_app_mode)
         cerr << "Gathering reference k-mers\n";
@@ -393,7 +408,8 @@ bool CAGCCompressor::determine_splitters(const string& reference_file_name, cons
             contig_t part = get_part(contig, start_pos, contig_part_size);
 
             start_pos += part.size() - (kmer_length - 1);
-            q_contigs_data->Emplace(move(part), part.size());
+            auto cost = part.size();
+            q_contigs_data->Emplace(move(part), cost);
         }
     }
 
@@ -407,10 +423,15 @@ bool CAGCCompressor::determine_splitters(const string& reference_file_name, cons
     if (verbosity > 0 && is_app_mode)
         cerr << "Determination of splitters\n";
 
-#ifdef _DEBUG
-    sort(v_candidate_kmers.begin(), v_candidate_kmers.end());
+#ifdef NO_RADULS
+//    sort(v_candidate_kmers.begin(), v_candidate_kmers.end());
+#ifdef SINGLE_THR_SORT
+    sort(v_candidate_kmers.begin() + v_candidate_kmers_offset, v_candidate_kmers.begin() + v_candidate_kmers.size());
 #else
-       raduls::RadixSortMSD((uint8_t*)(v_candidate_kmers.data() + v_candidate_kmers_offset), nullptr, v_candidate_kmers.size() - v_candidate_kmers_offset, 8, 8, no_threads);
+    sort(std::execution::par, v_candidate_kmers.begin() + v_candidate_kmers_offset, v_candidate_kmers.begin() + v_candidate_kmers.size());
+#endif
+#else
+    raduls::RadixSortMSD((uint8_t*)(v_candidate_kmers.data() + v_candidate_kmers_offset), nullptr, v_candidate_kmers.size() - v_candidate_kmers_offset, 8, 8, no_threads);
 #endif
 
     if(adaptive_compression)
@@ -440,7 +461,11 @@ bool CAGCCompressor::determine_splitters(const string& reference_file_name, cons
     start_splitter_finding_threads(v_threads, no_threads, v_begin, v_end, vv_splitters);
 
     while (gio.ReadContigRaw(id, contig))
-        pq_contigs_raw->Emplace(move(contig), 0, contig.size());
+    {
+        auto cost = contig.size();
+        pq_contigs_raw->Emplace(move(contig), 0, cost);
+        contig.clear();
+    }
 
     pq_contigs_raw->MarkCompleted();
 
@@ -485,19 +510,11 @@ bool CAGCCompressor::count_kmers(vector<pair<string, vector<uint8_t>>>& v_contig
     for (auto& cd : v_contig_data)
         tot_contig_len += cd.second.size();
 
-#ifndef _DEBUG
     v_candidate_kmers.resize(tot_contig_len + raduls::ALIGNMENT / 8 + contig_part_size * (no_threads + 1) + 1, ~0ull);
 
     auto alignment_shift = ((uint64_t)v_candidate_kmers.data()) % raduls::ALIGNMENT;
     //    auto extra_items = raduls::ALIGNMENT / 8 - alignment_shift / 8;
     v_candidate_kmers_offset = raduls::ALIGNMENT / 8 - alignment_shift / 8;
-#else
-    v_candidate_kmers.resize(tot_contig_len + 256 / 8 + contig_part_size * (no_threads + 1) + 1, ~0ull);
-
-    auto alignment_shift = ((uint64_t)v_candidate_kmers.data()) % 256;
-    //    auto extra_items = raduls::ALIGNMENT / 8 - alignment_shift / 8;
-    v_candidate_kmers_offset = 256 / 8 - alignment_shift / 8;
-#endif
 
     if (verbosity > 0 && is_app_mode)
         cerr << "Gathering reference k-mers\n";
@@ -519,7 +536,8 @@ bool CAGCCompressor::count_kmers(vector<pair<string, vector<uint8_t>>>& v_contig
             contig_t part = get_part(cd.second, start_pos, contig_part_size);
 
             start_pos += part.size() - (kmer_length - 1);
-            q_contigs_data->Emplace(move(part), part.size());
+            auto cost = part.size();
+            q_contigs_data->Emplace(move(part), cost);
         }
     }
 
@@ -533,8 +551,13 @@ bool CAGCCompressor::count_kmers(vector<pair<string, vector<uint8_t>>>& v_contig
     if (verbosity > 0 && is_app_mode)
         cerr << "Determination of splitters\n";
 
-#ifdef _DEBUG
-    sort(v_candidate_kmers.begin(), v_candidate_kmers.end());
+#ifdef NO_RADULS
+//    sort(v_candidate_kmers.begin(), v_candidate_kmers.end());
+#ifdef SINGLE_THR_SORT
+        sort(v_candidate_kmers.begin() + v_candidate_kmers_offset, v_candidate_kmers.begin() + v_candidate_kmers.size() - v_candidate_kmers_offset);
+#else
+    sort(execution::par, v_candidate_kmers.begin() + v_candidate_kmers_offset, v_candidate_kmers.begin() + v_candidate_kmers.size() - v_candidate_kmers_offset);
+#endif
 #else
     raduls::RadixSortMSD((uint8_t*)(v_candidate_kmers.data() + v_candidate_kmers_offset), nullptr, v_candidate_kmers.size() - v_candidate_kmers_offset, 8, 8, no_threads);
 #endif
@@ -812,10 +835,12 @@ void CAGCCompressor::preprocess_raw_contig(contig_t& ctg)
         c = ctg[in_pos++];
         if (c >> 6)                          // (c >= 64)
             ctg[out_pos++] = cnv_num[c];
+        [[fallthrough]];
     case 2:
         c = ctg[in_pos++];
         if (c >> 6)                          // (c >= 64)
             ctg[out_pos++] = cnv_num[c];
+        [[fallthrough]];
     case 1:
         c = ctg[in_pos++];
         if (c >> 6)                          // (c >= 64)
@@ -845,7 +870,7 @@ void CAGCCompressor::preprocess_raw_contig(contig_t& ctg)
 // *******************************************************************************************
 void CAGCCompressor::register_segments(uint32_t n_t)
 {
-    buffered_seg_part.sort_known(n_t);           // TODO: sort in parallel by many threads
+    buffered_seg_part.sort_known(n_t);          
     uint32_t no_new = buffered_seg_part.process_new();
 
     for (uint32_t i = 0; i < no_new; ++i)
@@ -976,7 +1001,7 @@ void CAGCCompressor::start_compressing_threads(vector<thread>& v_threads, my_bar
 
                                 auto max_ps = dynamic_pointer_cast<CCollection_V3>(collection_desc)->get_no_samples();
                                 if (max_ps < processed_samples)
-                                    processed_samples = max_ps;
+                                    processed_samples = (uint32_t) max_ps;
                             }
 
                             if (archive_version >= 3000 && processed_samples % pack_cardinality == 0)
@@ -999,7 +1024,7 @@ void CAGCCompressor::start_compressing_threads(vector<thread>& v_threads, my_bar
 
                             auto max_ps = dynamic_pointer_cast<CCollection_V3>(collection_desc)->get_no_samples();
                             if (max_ps < processed_samples)
-                                processed_samples = max_ps;
+                                processed_samples = (uint32_t) max_ps;
                         }
 
                         if (archive_version >= 3000 && processed_samples % pack_cardinality == 0)
@@ -1037,7 +1062,10 @@ void CAGCCompressor::start_compressing_threads(vector<thread>& v_threads, my_bar
                         }
 
                         for (auto& x : v_raw_contigs)
-                            pq_contigs_desc_aux->Emplace(make_tuple(contig_processing_stage_t::hard_contigs, get<0>(x), get<1>(x), move(get<2>(x))), 1, get<2>(x).size());
+                        {
+                            auto cost = get<2>(x).size();
+                            pq_contigs_desc_aux->Emplace(make_tuple(contig_processing_stage_t::hard_contigs, get<0>(x), get<1>(x), move(get<2>(x))), 1, cost);
+                        }
 
                         v_raw_contigs.clear();
 
@@ -1390,7 +1418,7 @@ pair<pair<uint64_t, uint64_t>, bool> CAGCCompressor::find_cand_segment_with_one_
 
     for (auto& candidate : v_candidates)
     {
-        auto estim_size = get<3>(candidate)->estimate(get<2>(candidate) ? segment_rc : segment_dir, best_estim_size, zstd_dctx);
+        auto estim_size = get<3>(candidate)->estimate(get<2>(candidate) ? segment_rc : segment_dir, (uint32_t) best_estim_size, zstd_dctx);
         auto cand_pk = make_pair(get<0>(candidate), get<1>(candidate));
 
         if (estim_size < best_estim_size || 
@@ -1570,13 +1598,15 @@ bool CAGCCompressor::AddSampleFiles(vector<pair<string, string>> _v_sample_file_
     const size_t min_size_before_synchronization = 1ull << 30;
 
     if (archive_version >= 3000 && in_archive != nullptr)
-        processed_samples = dynamic_pointer_cast<CCollection_V3>(collection_desc)->get_no_samples();
+        processed_samples = (uint32_t) dynamic_pointer_cast<CCollection_V3>(collection_desc)->get_no_samples();
     else
         processed_samples = 0;
 
     if (concatenated_genomes)
         cnt_contigs_in_sample = processed_samples % pack_cardinality;
 
+    size_t num_empty_input = 0; 
+    
     for(auto sf : _v_sample_file_name)
     {
         if (archive_version >= 3000)
@@ -1592,6 +1622,9 @@ bool CAGCCompressor::AddSampleFiles(vector<pair<string, string>> _v_sample_file_
             ;
         }
 
+        bool any_contigs_read = false;
+        bool any_contigs_added = false;
+        
         while (gio.ReadContigRaw(id, contig))
         {
             if (concatenated_genomes)
@@ -1600,7 +1633,9 @@ bool CAGCCompressor::AddSampleFiles(vector<pair<string, string>> _v_sample_file_
                     cerr << "Error: Pair sample_name:contig_name " << id << ":" << id << " is already in the archive!\n";
                 else
                 {
-                    pq_contigs_desc->Emplace(make_tuple(contig_processing_stage_t::all_contigs, "", id, move(contig)), sample_priority, contig.size());
+                    auto cost = contig.size();
+                    pq_contigs_desc->Emplace(make_tuple(contig_processing_stage_t::all_contigs, "", id, move(contig)), sample_priority, cost);
+                    contig.clear();
 
                     if (++cnt_contigs_in_sample >= max_no_contigs_before_synchronization)
                     {
@@ -1612,18 +1647,36 @@ bool CAGCCompressor::AddSampleFiles(vector<pair<string, string>> _v_sample_file_
                         cnt_contigs_in_sample = 0;
                         --sample_priority;
                     }
+
+                    any_contigs_added = true;
                 }
             }
             else
             {
                 if (collection_desc->register_sample_contig(sf.first, id))
-                    pq_contigs_desc->Emplace(make_tuple(contig_processing_stage_t::all_contigs, sf.first, id, move(contig)), sample_priority, contig.size());
+                {
+                    auto cost = contig.size();
+                    pq_contigs_desc->Emplace(make_tuple(contig_processing_stage_t::all_contigs, sf.first, id, move(contig)), sample_priority, cost);
+                    contig.clear();
+                    any_contigs_added = true;
+                }
                 else
                     cerr << "Error: Pair sample_name:contig_name " << sf.first << ":" << id << " is already in the archive!\n";
             }
+
+            any_contigs_read = true;
         }
 
-        if (!concatenated_genomes)
+        if (!any_contigs_read) 
+            cerr << "Warning: Pair sample_name:file_path " << sf.first << ":" << sf.second << " contains no contigs and will not be included in the archive!\n";
+
+        if (!any_contigs_added) 
+        {
+            cerr << "Warning: Pair sample_name:file_path " << sf.first << ":" << sf.second << " contains only contigs already present in the archive!\n";
+            ++num_empty_input;
+        }
+
+        if (!concatenated_genomes && any_contigs_added)
         {
             // Send synchronization tokens
             for (uint32_t i = 0; i < no_workers; ++i)
@@ -1648,13 +1701,12 @@ bool CAGCCompressor::AddSampleFiles(vector<pair<string, string>> _v_sample_file_
         --sample_priority;
     }
 
-
     pq_contigs_desc->MarkCompleted();
 
     join_threads(v_threads);
 
     if(concatenated_genomes)
-        processed_samples = dynamic_pointer_cast<CCollection_V3>(collection_desc)->get_no_samples();
+        processed_samples = (uint32_t) dynamic_pointer_cast<CCollection_V3>(collection_desc)->get_no_samples();
 
     if (archive_version >= 3000 && processed_samples % pack_cardinality != 0)
         dynamic_pointer_cast<CCollection_V3>(collection_desc)->store_contig_batch((processed_samples / pack_cardinality) * pack_cardinality, processed_samples);
@@ -1665,7 +1717,7 @@ bool CAGCCompressor::AddSampleFiles(vector<pair<string, string>> _v_sample_file_
     pq_contigs_desc_aux.reset();
     pq_contigs_desc_working.reset();
 
-    no_samples_in_archive += _v_sample_file_name.size();
+    no_samples_in_archive += _v_sample_file_name.size() - num_empty_input;
 
     return true;
 }

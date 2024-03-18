@@ -4,8 +4,8 @@
 //
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.0
-// Date   : 2022-12-22
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
 #include "../core/agc_decompressor_lib.h"
@@ -85,6 +85,17 @@ int CAGCFile::NCtg(const std::string& sample)	const
 		return -1;
 
 	return agc->GetNoContigs(sample);
+}
+
+// *******************************************************************************************
+int CAGCFile::GetReferenceSample(std::string& sample) const
+{
+	if (!is_opened)
+		return -1;
+
+	agc->GetReferenceSample(sample);
+
+	return 0;
 }
 
 // *******************************************************************************************
@@ -179,6 +190,23 @@ int agc_n_ctg(const agc_t* agc, const char* sample)
 }
 
 // *******************************************************************************************
+char* agc_reference_sample(const agc_t* agc)
+{
+	if (!agc)
+		return NULL;
+
+	string sample;
+
+	if (agc->GetReferenceSample(sample) < 0)
+		return NULL;
+
+	char* c_sample = (char*) malloc(sample.size() + 1);
+	strcpy(c_sample, sample.c_str());
+
+	return c_sample;
+}
+
+// *******************************************************************************************
 char** agc_list_sample(const agc_t* agc, int* n_sample)
 {
 	if (!agc)
@@ -249,5 +277,14 @@ int agc_list_destroy(char** list)
 
 	return 0;
 }
+
+// *******************************************************************************************
+int agc_list_destroy(char* sample)
+{
+	free(sample);
+
+	return 0;
+}
+
 
 // EOF

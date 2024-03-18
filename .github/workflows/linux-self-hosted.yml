@@ -1,37 +1,39 @@
 name: linux self-hosted CI
 
 on:
-  push:
-      paths-ignore:
-      - '**.md'
-  pull_request:
-    branches: [ master ]
-    paths-ignore:
-      - '**.md'
+#  push:
+#      paths-ignore:
+#      - '**.md'
+#  pull_request:
+#    branches: [ master ]
+#    paths-ignore:
+#      - '**.md'
   workflow_dispatch:
 
 jobs:
   checkout:
     runs-on: [linux-self-hosted, agc]
     steps:
-    - uses: actions/checkout@v3
-
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
   make-tests:
     name: Make tests
     runs-on: [linux-self-hosted , agc]
     needs: checkout
     env: 
-      EXE: ./agc
+      EXE_AGC: ./agc
     steps:           
-    - name: make (g++ 9)
-      run: |
-        make clean
-        make CXX=g++-9 agc
-        make clean
-        
+#    - name: make (g++ 9)
+#      run: |
+#        make clean
+#        make CXX=g++-9 agc
+#        make clean
+#        
     - name: make (g++ 10)
       run: |
+        make clean
         make CXX=g++-10 agc
         make clean
         
@@ -46,7 +48,7 @@ jobs:
       
     - name: Print usage
       run: |
-        $EXE --help
+        $EXE_AGC --help
     
  
   
@@ -57,7 +59,7 @@ jobs:
     runs-on: [linux-self-hosted , agc]
     needs: make-tests
     env: 
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      FASTA: camp/FASTA-GZ
      OUT_NAME: test-camp
@@ -91,7 +93,7 @@ jobs:
     runs-on: [linux-self-hosted, agc]
     needs: camp-tests
     env: 
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      FASTA: camp/FASTA-GZ
      OUT_NAME: test-camp
@@ -128,7 +130,7 @@ jobs:
     runs-on: [linux-self-hosted, agc]
     needs: make-tests
     env: 
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      FASTA: salmo/FASTA-GZ
      OUT_NAME: test-salmo
@@ -162,7 +164,7 @@ jobs:
     runs-on: [linux-self-hosted, agc]
     needs: salmo-tests
     env: 
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      FASTA: salmo/FASTA-GZ
      OUT_NAME: test-salmo
@@ -196,7 +198,7 @@ jobs:
     runs-on: [linux-self-hosted, agc]
     needs: make-tests
     env: 
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      REF: covid/covid_ref.fa
      FASTA: covid/covid_rest_mini.fa
@@ -214,8 +216,8 @@ jobs:
         cd $DATA
         rm -rf $OUT_NAME
         mkdir $OUT_NAME
-        $EXE create -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
-        $EXE getcol -l $LINE_LEN -o $OUT_NAME -t 32 $OUT_NAME/$OUT_NAME.agc
+        $EXE_AGC create -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
+        $EXE_AGC getcol -l $LINE_LEN -o $OUT_NAME -t 32 $OUT_NAME/$OUT_NAME.agc
         cd $OUT_NAME
         for f in *fa; do md5sum $f >> md5_all; done
         cmp md5_all ../covid/md5_all
@@ -228,15 +230,15 @@ jobs:
         cd $DATA
         rm -rf $OUT_NAME
         mkdir $OUT_NAME
-        $EXE create -a -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
-        $EXE listset $OUT_NAME/$OUT_NAME.agc > $OUT_NAME/$SET_LIST
+        $EXE_AGC create -a -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
+        $EXE_AGC listset $OUT_NAME/$OUT_NAME.agc > $OUT_NAME/$SET_LIST
         NUM_SMPL=`cat $OUT_NAME/$SET_LIST | wc -l`
         for ((i=1; i<=$NUM_SMPL; i++))
         do 
           echo $i
           SMPL=`sed " $i q;d" $OUT_NAME/$SET_LIST`
           echo "./agc getset -l $LINE_LEN $OUT_NAME/$OUT_NAME.agc $SMPL > $OUT_NAME/$SMPL.fa"
-          $EXE getset -l $LINE_LEN $OUT_NAME/$OUT_NAME.agc $SMPL > $OUT_NAME/$SMPL.fa
+          $EXE_AGC getset -l $LINE_LEN $OUT_NAME/$OUT_NAME.agc $SMPL > $OUT_NAME/$SMPL.fa
         done
         cd $OUT_NAME
         for f in *fa; do md5sum $f >> md5_all; done
@@ -250,16 +252,16 @@ jobs:
         cd $DATA
         rm -rf $OUT_NAME
         mkdir $OUT_NAME
-        $EXE create -a -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
-        $EXE append -a -c  $OUT_NAME/$OUT_NAME.agc $FASTA2 > $OUT_NAME/$OUT_NAME-APPEND.agc
-        $EXE listset $OUT_NAME/$OUT_NAME-APPEND.agc > $OUT_NAME/$SET_LIST
+        $EXE_AGC create -a -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
+        $EXE_AGC append -a -c  $OUT_NAME/$OUT_NAME.agc $FASTA2 > $OUT_NAME/$OUT_NAME-APPEND.agc
+        $EXE_AGC listset $OUT_NAME/$OUT_NAME-APPEND.agc > $OUT_NAME/$SET_LIST
         NUM_SMPL=`cat $OUT_NAME/$SET_LIST | wc -l`
         for ((i=1; i<=$NUM_SMPL; i++))
         do 
           echo $i
           SMPL=`sed " $i q;d" $OUT_NAME/$SET_LIST`
           echo "./agc getset -l $LINE_LEN $OUT_NAME/$OUT_NAME-APPEND.agc $SMPL > $OUT_NAME/$SMPL.fa"
-          $EXE getset -l $LINE_LEN $OUT_NAME/$OUT_NAME-APPEND.agc $SMPL > $OUT_NAME/$SMPL.fa
+          $EXE_AGC getset -l $LINE_LEN $OUT_NAME/$OUT_NAME-APPEND.agc $SMPL > $OUT_NAME/$SMPL.fa
         done
         cd $OUT_NAME
         for f in *fa; do md5sum $f >> md5_all; done
@@ -274,7 +276,7 @@ jobs:
     runs-on: [linux-self-hosted, agc]
     needs: covid-tests
     env: 
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      REF: covid/covid_ref.fa
      FASTA: covid/covid_rest_mini.fa
@@ -293,8 +295,8 @@ jobs:
         cd $DATA
         rm -rf $OUT_NAME
         mkdir $OUT_NAME
-        $EXE create $PARAMS -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
-        $EXE getcol -l $LINE_LEN -o $OUT_NAME -t 32 $OUT_NAME/$OUT_NAME.agc
+        $EXE_AGC create $PARAMS -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
+        $EXE_AGC getcol -l $LINE_LEN -o $OUT_NAME -t 32 $OUT_NAME/$OUT_NAME.agc
         cd $OUT_NAME
         for f in *fa; do md5sum $f >> md5_all; done
         cmp md5_all ../covid/md5_all
@@ -310,7 +312,7 @@ jobs:
     runs-on: [linux-self-hosted, agc]
     needs: [camp-tests-params, salmo-tests-params, covid-tests-params]
     env: 
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      FASTA: hprc/FASTA-GZ
      OUT_NAME: test-hprc
@@ -343,7 +345,7 @@ jobs:
     runs-on: [linux-self-hosted, agc]
     needs: [hprc-tests]
     env: 
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      FASTA: hprc/FASTA-GZ
      OUT_NAME: test-hprc
@@ -374,11 +376,11 @@ jobs:
   ########################################################################################
   
   hgsvc-tests-all:
-    name: mini HGSVC tests
+    name: mini HGSVC tests 
     runs-on: [linux-self-hosted, agc]
     needs: [hprc-tests-params]
     env:
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      FASTA: hgsvc/FASTA-GZ
      OUT_NAME: test-hgsvc
@@ -398,11 +400,11 @@ jobs:
   ########################################################################################
   
   hgsvc-tests-append:
-    name: mini HGSVC tests
+    name: mini HGSVC tests 1by1
     runs-on: [linux-self-hosted, agc]
     needs: [hprc-tests-params]
     env:
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      FASTA: hgsvc/FASTA-GZ
      OUT_NAME: test-hgsvc

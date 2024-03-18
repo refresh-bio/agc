@@ -2,10 +2,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.0
-// Date   : 2022-12-22
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
 #include <iostream>
@@ -61,7 +61,7 @@ bool CAGCBasic::load_file_type_info(const string& archive_name)
     if (!in_archive->Open(archive_name))
     {
         if (is_app_mode)
-            cerr << "Cannot open archive: " << archive_name << endl;
+            cerr << "Cannot open archive " << archive_name << endl;
         return false;
     }
 

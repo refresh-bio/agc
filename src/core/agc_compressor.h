@@ -5,10 +5,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.0
-// Date   : 2022-12-22
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
 #include "../core/agc_basic.h"
@@ -290,7 +290,7 @@ public:
 			uint64_t j_from = i * n_seg_part / nt;
 			uint64_t j_to = (i + 1) * n_seg_part / nt;
 			
-			for (uint32_t j = j_from; j < j_to; ++j)
+			for (uint64_t j = j_from; j < j_to; ++j)
 				vl_seg_part[j].sort();
 				}));
 
@@ -366,7 +366,7 @@ public:
 			uint64_t j_from = i * n_seg_part / nt;
 			uint64_t j_to = (i + 1) * n_seg_part / nt;
 
-			for (uint32_t j = j_from; j < j_to; ++j)
+			for (uint64_t j = j_from; j < j_to; ++j)
 				vl_seg_part[j].clear();
 				}));
 
@@ -455,8 +455,8 @@ class CAGCCompressor : public CAGCBasic
 	hash_set_t hs_splitters{ ~0ull, 16ull, 0.4, equal_to<uint64_t>{}, MurMur64Hash{} };			// only reads after init - no need to lock
 	bloom_set_t bloom_splitters;
 
-	unordered_map<pair<uint64_t, uint64_t>, int32_t> map_segments;										// shared_mutex (seg_map_mtx)
-	unordered_map<uint64_t, vector<uint64_t>> map_segments_terminators;									// shared_mutex (seg_map_mtx)
+	unordered_map<pair<uint64_t, uint64_t>, int32_t, MurMurPair64Hash> map_segments;			// shared_mutex (seg_map_mtx)
+	unordered_map<uint64_t, vector<uint64_t>, MurMur64Hash> map_segments_terminators;			// shared_mutex (seg_map_mtx)
 	vector<shared_ptr<CSegment>> v_segments;													// shared_mutex to vector (seg_vec_mtx) + internal mutexes in stored objects
 
 	uint32_t no_segments;
@@ -468,7 +468,7 @@ class CAGCCompressor : public CAGCBasic
 
 	atomic<size_t> processed_bases;
 	atomic<uint64_t> a_part_id;
-	uint32_t processed_samples;
+	uint32_t processed_samples{ 0 };
 
 	vector<vector<uint64_t>> vv_splitters;
 

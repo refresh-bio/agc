@@ -5,15 +5,19 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.0
-// Date   : 2022-12-22
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
+#if defined(ARCH_X64)
 #include <mmintrin.h>
-#include <cstdint>
 #include <xmmintrin.h>
+#elif defined(ARCH_ARM)
+#include <arm_neon.h>
+#endif
+#include <cstdint>
 #include <cstddef>
 
 #include <algorithm>

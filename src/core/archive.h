@@ -5,10 +5,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.0
-// Date   : 2022-12-22
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
 #include <cstdio>
@@ -20,6 +20,7 @@
 #include <thread>
 #include <mutex>
 #include "../core/io.h"
+#include "../core/utils.h"
 
 using namespace std;
 
@@ -55,7 +56,7 @@ class CArchive
 	map<int, vector<pair<vector<uint8_t>, uint64_t>>> m_buffer;
 
 	vector<stream_t> v_streams;
-	unordered_map<string, size_t> rm_streams;
+	unordered_map<string, size_t, MurMurStringsHash> rm_streams;
 	string lazy_prefix;
 
 	mutex mtx;

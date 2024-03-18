@@ -2,10 +2,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.0
-// Date   : 2022-12-22
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
 #include <iostream>
@@ -14,6 +14,11 @@
 #include <vector>
 #include <algorithm>
 #include <filesystem>
+
+#ifdef _MSC_VER 
+//#include <mimalloc.h>
+//#include <mimalloc-new-delete.h>
+#endif
 
 #include "../app/application.h"
 #include "../core/agc_compressor.h"
@@ -29,7 +34,7 @@ int CApplication::Run(const int argc, const char** argv)
         return 0;
 
     for (int i = 0; i < argc; ++i)
-        cmd_line += string(argv[i]) + " ";
+        cmd_line += string(argv[i]) + " "s;
 
     cmd_line.pop_back();
 
@@ -45,6 +50,8 @@ int CApplication::Run(const int argc, const char** argv)
         getset();
     else if (execution_params.mode == "getctg")
         getctg();
+    else if (execution_params.mode == "listref")
+        listref();
     else if (execution_params.mode == "listset")
         listset();
     else if (execution_params.mode == "listctg")
@@ -98,6 +105,7 @@ bool CApplication::create()
     for (auto& fn : execution_params.input_names)
     {
         string sample_name = std::filesystem::path(fn).stem().string();
+        remove_common_suffixes(sample_name);
         v_sample_file_names.emplace_back(sample_name, fn);
     }
 
@@ -133,6 +141,7 @@ bool CApplication::append()
     for (auto& fn : execution_params.input_names)
     {
         string sample_name = std::filesystem::path(fn).stem().string();
+        remove_common_suffixes(sample_name);
         v_sample_file_names.emplace_back(sample_name, fn);
     }
 
@@ -159,14 +168,16 @@ bool CApplication::getcol()
         
     if (!r)
     {
-        cerr << "Cannot open archive " << execution_params.in_archive_name << endl;
+//        cerr << "Cannot open archive " << execution_params.in_archive_name << endl;
         return false;
     }
 
     r &= agc_d.GetCollectionFiles(
         execution_params.output_name,
         execution_params.line_length(), 
-        execution_params.no_threads());
+        execution_params.no_threads(),
+        execution_params.gzip_level(),
+        execution_params.verbosity());
         
     r &= agc_d.Close();
 
@@ -182,7 +193,7 @@ bool CApplication::getset()
 
     if (!r)
     {
-        cerr << "Cannot open archive " << execution_params.in_archive_name << endl;
+//        cerr << "Cannot open archive " << execution_params.in_archive_name << endl;
         return false;
     }
 
@@ -190,8 +201,10 @@ bool CApplication::getset()
         execution_params.output_name,
         execution_params.sample_names, 
         execution_params.line_length(), 
-        execution_params.no_threads());
-        
+        execution_params.no_threads(),
+        execution_params.gzip_level(),
+        execution_params.verbosity());
+
     r &= agc_d.Close();
 
     return r;
@@ -206,7 +219,7 @@ bool CApplication::getctg()
 
     if (!r)
     {
-        cerr << "Cannot open archive " << execution_params.in_archive_name << endl;
+//        cerr << "Cannot open archive " << execution_params.in_archive_name << endl;
         return false;
     }
 
@@ -214,7 +227,38 @@ bool CApplication::getctg()
         execution_params.output_name, 
         execution_params.contig_names, 
         execution_params.line_length(), 
-        execution_params.no_threads());
+        execution_params.no_threads(),
+        execution_params.gzip_level(),
+        execution_params.verbosity());
+
+    r &= agc_d.Close();
+
+    return r;
+}
+
+// *******************************************************************************************
+bool CApplication::listref()
+{
+    CAGCDecompressor agc_d(true);
+
+    bool r = agc_d.Open(execution_params.in_archive_name, execution_params.prefetch);
+
+    if (!r)
+    {
+//        cerr << "Cannot open archive " << execution_params.in_archive_name << endl;
+        return false;
+    }
+
+    string ref_name;
+
+    agc_d.GetReferenceSample(ref_name);
+
+    COutFile outf;
+    r &= outf.Open(execution_params.output_name);
+
+    outf.Write(ref_name);
+
+    outf.Close();
 
     r &= agc_d.Close();
 
@@ -230,7 +274,7 @@ bool CApplication::listset()
 
     if (!r)
     {
-        cerr << "Cannot open archive " << execution_params.in_archive_name << endl;
+//        cerr << "Cannot open archive " << execution_params.in_archive_name << endl;
         return false;
     }
 
@@ -266,7 +310,7 @@ bool CApplication::listctg()
 
     if (!r)
     {
-        cerr << "Cannot open archive " << execution_params.in_archive_name << endl;
+//        cerr << "Cannot open archive " << execution_params.in_archive_name << endl;
         return false;
     }
 
@@ -305,7 +349,7 @@ bool CApplication::info()
 
     if (!agc_d.Open(execution_params.in_archive_name, execution_params.prefetch))
     {
-        cerr << "Cannot open archive " << execution_params.in_archive_name << endl;
+//        cerr << "Cannot open archive " << execution_params.in_archive_name << endl;
         return false;
     }
 
@@ -314,15 +358,18 @@ bool CApplication::info()
     uint32_t kmer_length;
     uint32_t min_match_len;
     uint32_t pack_cardinality;
+    string ref_name;
 
     agc_d.ListSamples(v_sample_names);
     agc_d.GetCmdLines(cmd_lines);
     agc_d.GetParams(kmer_length, min_match_len, pack_cardinality);
+    agc_d.GetReferenceSample(ref_name);
 
     cerr << "No. samples      : " << v_sample_names.size() << endl;
     cerr << "k-mer length     : " << kmer_length << endl;
     cerr << "Min. match length: " << min_match_len << endl;
     cerr << "Batch size       : " << pack_cardinality << endl;
+    cerr << "Reference name   : " << ref_name << endl;
     cerr << "Command lines:" << endl;
 
     for (auto& cmd : cmd_lines)

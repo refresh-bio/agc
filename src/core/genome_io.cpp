@@ -2,10 +2,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.0
-// Date   : 2022-12-22
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
 #include "../core/genome_io.h"
@@ -19,10 +19,10 @@ CGenomeIO::CGenomeIO()
 {
 	writing = false;
 
-	in = nullptr;
+//	in = nullptr;
 	out = nullptr;
-	gz_in = nullptr;
-	gz_out = nullptr;
+//	gz_in = nullptr;
+//	gz_out = nullptr;
 
 	is_gzipped = false;
 	use_stdout = false;
@@ -36,28 +36,34 @@ CGenomeIO::CGenomeIO()
 CGenomeIO::~CGenomeIO()
 {
 	Close();
+
+	if (sdf)
+		delete sdf;
+	if (sif)
+		delete sif;
 }
 
 // *******************************************************************************************
 bool CGenomeIO::Open(const string& _file_name, const bool _writing)
 {
-	if (in || out || gz_in || gz_out)
+//	if (in || out || gz_in || gz_out || sif)
+	if (out || sif)
 		return false;
 
-	is_gzipped = _file_name.length() > 3 && _file_name.substr(_file_name.length() - 3, 3) == ".gz"s;
+//	is_gzipped = _file_name.length() > 3 && _file_name.substr(_file_name.length() - 3, 3) == ".gz"s;
 	use_stdout = _file_name.empty();
 	writing = _writing;
 
 	if (writing)
 	{
-		if (is_gzipped)
+/*		if (is_gzipped)
 		{
 			gz_out = gzopen(_file_name.c_str(), "w3");
 			if (!gz_out)
 				return false;
 			gzbuffer(gz_out, (uint32_t) gz_buffer_size);
 		}
-		else
+		else*/
 		{
 			if (use_stdout)
 			{
@@ -80,7 +86,7 @@ bool CGenomeIO::Open(const string& _file_name, const bool _writing)
 	}
 	else
 	{
-		if (is_gzipped)
+/*		if (is_gzipped)
 		{
 			gz_in = gzopen(_file_name.c_str(), "r");
 			if (!gz_in)
@@ -92,7 +98,13 @@ bool CGenomeIO::Open(const string& _file_name, const bool _writing)
 			in = fopen(_file_name.c_str(), "rb");
 			if (!in)
 				return false;
-		}
+		}*/
+
+		sif = new refresh::stream_in_file(_file_name);
+		if (!sif->is_open())
+			return false;
+
+		sdf = new refresh::stream_decompression(sif);
 
 		buffer = new uint8_t[buffer_size];
 	}
@@ -108,12 +120,12 @@ bool CGenomeIO::Close()
 {
 	if (writing)
 	{
-		if (gz_out)
+/*		if (gz_out)
 		{
 			gzclose(gz_out);
 			gz_out = nullptr;
 		}
-		else if (out)
+		else*/ if (out)
 		{
 			fflush(out);
 			if(!use_stdout)
@@ -123,7 +135,7 @@ bool CGenomeIO::Close()
 	}
 	else
 	{
-		if (gz_in)
+/*		if (gz_in)
 		{
 			gzclose(gz_in);
 			gz_in = nullptr;
@@ -132,6 +144,15 @@ bool CGenomeIO::Close()
 		{
 			fclose(in);
 			in = nullptr;
+		}*/
+
+		if (sif)
+		{
+//			sif->close();
+			delete sdf;
+			delete sif;
+			sif = nullptr;
+			sdf = nullptr;
 		}
 	}
 
@@ -150,7 +171,7 @@ size_t CGenomeIO::FileSize()
 
 	if (!writing)
 	{
-		if (is_gzipped)
+/*		if (is_gzipped)
 		{
 			while (fill_buffer())
 			{
@@ -164,7 +185,25 @@ size_t CGenomeIO::FileSize()
 			fseek(in, 0, SEEK_END);
 			s = my_ftell(in);
 			fseek(in, 0, SEEK_SET);
+		}*/
+
+		const size_t loc_buf_size = 1 << 25;
+		char* loc_buf = new char[loc_buf_size];
+		size_t readed;
+
+		while (true)
+		{
+			sdf->read(loc_buf, loc_buf_size, readed);
+			if (!readed)
+				break;
+
+			s += readed;
 		}
+
+		delete[] loc_buf;
+
+		sif->restart();
+		sdf->restart(sif);
 	}
 
 	return s;
@@ -182,6 +221,7 @@ bool CGenomeIO::ReadContigConverted(string& id, contig_t& contig)
 	return !writing && read_contig(id, contig, true);
 }
 
+#if 0
 // *******************************************************************************************
 bool CGenomeIO::SaveContigConverted(const string& id, const contig_t& contig, const uint32_t line_length)
 {
@@ -192,6 +232,13 @@ bool CGenomeIO::SaveContigConverted(const string& id, const contig_t& contig, co
 bool CGenomeIO::SaveContig(const string& id, const contig_t& contig, const uint32_t line_length)
 {
 	return save_contig(id, contig, line_length, false);
+}
+#endif
+
+// *******************************************************************************************
+bool CGenomeIO::SaveContigDirectly(const string& id, const contig_t& contig, const uint32_t gzip_level)
+{
+	return save_contig_directly(id, contig, gzip_level);
 }
 
 // *******************************************************************************************
@@ -212,10 +259,12 @@ bool CGenomeIO::fill_buffer()
 	size_t to_read = buffer_size - buffer_filled;
 	size_t readed;
 	
-	if (is_gzipped)
+/*	if (is_gzipped)
 		readed = gzread(gz_in, buffer + buffer_filled, (uint32_t) to_read);
 	else
-		readed = fread(buffer + buffer_filled, 1, to_read, in);
+		readed = fread(buffer + buffer_filled, 1, to_read, in);*/
+
+	sdf->read((char*) buffer + buffer_filled, to_read, readed);
 	
 	buffer_filled += readed;
 
@@ -225,7 +274,8 @@ bool CGenomeIO::fill_buffer()
 // *******************************************************************************************
 bool CGenomeIO::read_contig_raw(string& id, contig_t& contig)
 {
-	if (!in && !gz_in)
+//	if (!in && !gz_in && !sif)
+	if (!sif)
 		return false;
 
 	id.clear();
@@ -283,7 +333,7 @@ int CGenomeIO::find_contig_end()
 	if (p == buffer + buffer_filled)
 		return -1;
 
-	return p - buffer;
+	return (int) (p - buffer);
 }
 
 // *******************************************************************************************
@@ -316,6 +366,7 @@ bool CGenomeIO::read_contig(string& id, contig_t& contig, const bool converted)
 	return true;
 }
 
+#if 0
 // *******************************************************************************************
 bool CGenomeIO::save_contig(const string& id, const contig_t& contig, const uint32_t line_length, const bool converted)
 {
@@ -342,7 +393,32 @@ bool CGenomeIO::save_contig(const string& id, const contig_t& contig, const uint
 
 	return true;
 }
+#endif
 
+// *******************************************************************************************
+bool CGenomeIO::save_contig_directly(const string& id, const contig_t& contig, const uint32_t gzip_level)
+{
+	string tmp = ">" + id + "\n";
+
+	if (gzip_level)
+	{
+		auto overhead = gzip_zero_compressor.get_overhead(tmp.size());
+		gzip_zero_compressor_buffer.resize(tmp.size() + overhead);
+		auto packed_size = gzip_zero_compressor.compress(tmp.data(), tmp.size(), gzip_zero_compressor_buffer.data(), gzip_zero_compressor_buffer.size());
+
+		if (fwrite(gzip_zero_compressor_buffer.data(), 1, packed_size, out) != packed_size)
+			return false;
+	}
+	else
+	{
+		if (fwrite(tmp.data(), 1, tmp.size(), out) != tmp.size())
+			return false;
+	}
+
+	return fwrite(contig.data(), 1, contig.size(), out) == contig.size();
+}
+
+#if 0
 // *******************************************************************************************
 void CGenomeIO::save_contig_imp(const contig_t& contig, const uint32_t line_length)
 {
@@ -396,13 +472,13 @@ void CGenomeIO::save_contig_imp_cnv(const contig_t& contig, const uint32_t line_
 
 		switch (i = line_length % 8)
 		{
-		case 7:	*q++ = cnv_num[*p++];
-		case 6:	*q++ = cnv_num[*p++];
-		case 5:	*q++ = cnv_num[*p++];
-		case 4:	*q++ = cnv_num[*p++];
-		case 3:	*q++ = cnv_num[*p++];
-		case 2:	*q++ = cnv_num[*p++];
-		case 1:	*q++ = cnv_num[*p++];
+		case 7:	*q++ = cnv_num[*p++]; [[fallthrough]];
+		case 6:	*q++ = cnv_num[*p++]; [[fallthrough]];
+		case 5:	*q++ = cnv_num[*p++]; [[fallthrough]];
+		case 4:	*q++ = cnv_num[*p++]; [[fallthrough]];
+		case 3:	*q++ = cnv_num[*p++]; [[fallthrough]];
+		case 2:	*q++ = cnv_num[*p++]; [[fallthrough]];
+		case 1:	*q++ = cnv_num[*p++]; 
 		}
 		
 		for (; i < line_length; i += 8)
@@ -427,5 +503,6 @@ void CGenomeIO::save_contig_imp_cnv(const contig_t& contig, const uint32_t line_
 
 	delete[] line;
 }
+#endif
 
 // EOF

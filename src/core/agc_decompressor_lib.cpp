@@ -2,10 +2,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.0
-// Date   : 2022-12-22
+// Version: 3.1
+// Date   : 2024-03-18
 // *******************************************************************************************
 
 #include "../core/agc_decompressor_lib.h"
@@ -130,6 +130,7 @@ int CAGCDecompressorLibrary::GetContigString(const string& sample_name, const st
 
 	decompress_contig(task, nullptr, ctg);
 
+	contig_data.clear();
 	contig_data.reserve(ctg.size());
 	for (auto& c : ctg)
 		contig_data.push_back(cnv_num[static_cast<uint8_t>(c)]);
@@ -164,41 +165,6 @@ int64_t CAGCDecompressorLibrary::GetContigLength(const string& sample_name, cons
 		len += x.raw_length;
 
 	return len - (contig_desc.size() - 1) * kmer_length;
-}
-
-// *******************************************************************************************
-void CAGCDecompressorLibrary::start_decompressing_threads(vector<thread>& v_threads, const uint32_t n_t, bool converted_to_alpha)
-{
-	for (uint32_t i = 0; i < n_t; ++i)
-		v_threads.emplace_back([&, i, converted_to_alpha] {
-
-		auto zstd_ctx = ZSTD_createDCtx();
-
-		contig_t ctg;
-		contig_task_t contig_desc;
-
-		while (!q_contig_tasks->IsCompleted())
-		{
-			if (!q_contig_tasks->Pop(contig_desc))
-				break;
-
-			size_t priority = contig_desc.priority;
-
-			if (!decompress_contig(contig_desc, zstd_ctx, ctg))
-				continue;
-
-			if (converted_to_alpha)
-				convert_to_alpha(ctg);
-
-			name_range_t contig_name_range = contig_desc.name_range;
-
-			pq_contigs_to_save->Emplace(priority, sample_contig_data_t{ contig_desc.sample_name, contig_name_range.str(), move(ctg) });
-		}
-
-		pq_contigs_to_save->MarkCompleted();
-
-		ZSTD_freeDCtx(zstd_ctx);
-		});
 }
 
 // *******************************************************************************************
@@ -407,6 +373,17 @@ void CAGCDecompressorLibrary::GetParams(uint32_t& _kmer_length, uint32_t& _min_m
 	_kmer_length = kmer_length;
 	_min_match_len = min_match_len;
 	_pack_cardinality = pack_cardinality;
+}
+
+// *******************************************************************************************
+void CAGCDecompressorLibrary::GetReferenceSample(string& ref_name)
+{
+	ref_name.clear();
+
+	if (working_mode != working_mode_t::decompression)
+		return;
+
+	collection_desc->get_reference_name(ref_name);
 }
 
 // *******************************************************************************************

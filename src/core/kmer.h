@@ -5,10 +5,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.0
-// Date   : 2022-12-22
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
 #include "../core/defs.h"
@@ -161,6 +161,13 @@ public:
 	CKmer() : kernel_shift(0)
 	{
 		max_size = 0;
+		cur_size = 0;
+		kmer_dir = 0;
+		kmer_rc = 0;
+		kernel_mask = 0;
+		mask = 0;
+		shift = 0;
+		variant = kmer_mode_t::canonical;
 	}
 
 	// *******************************************************************************************

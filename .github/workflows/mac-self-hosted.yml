@@ -1,72 +1,98 @@
 name: mac self-hosted CI
 
 on:
-  push:
-      paths-ignore:
-      - '**.md'
-  pull_request:
-    branches: [ master ]
-    paths-ignore:
-      - '**.md'
+#  push:
+#      paths-ignore:
+#      - '**.md'
+#  pull_request:
+#    branches: [ master ]
+#    paths-ignore:
+#      - '**.md'
   workflow_dispatch:
+
+
 
 jobs:
 
+#  defaults:
+#    runs-on: [mac-self-hosted-M1, mac-self-hosted-Intel]
+#    strategy:
+#      matrix:
+#        runner: [mac-self-hosted-M1, mac-self-hosted-Intel]
+
+
+
   checkout:
+    strategy:
+      matrix:
+        runner: [mac-self-hosted-M1, mac-self-hosted-Intel]
     name: Checkout
-    runs-on: [mac-self-hosted, agc, macOS]
+    runs-on: ['${{ matrix.runner }}']
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
     - uses: maxim-lobanov/setup-xcode@v1
       with:
-        xcode-version: '14.1-beta'
+        xcode-version: latest-stable
+      #  xcode-version: '14.1-beta'
 
   make-tests:
+    strategy:
+      matrix:
+        runner: [mac-self-hosted-M1, mac-self-hosted-Intel]
     name: Make tests
-    runs-on: [mac-self-hosted, agc, macOS]
+    runs-on: ['${{ matrix.runner }}']
     needs: checkout
     env: 
-      EXE: ./agc
+      EXE_AGC: ./agc
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
     - uses: maxim-lobanov/setup-xcode@v1
       with:
-        xcode-version: '14.1-beta'
+        xcode-version: latest-stable
+      #  xcode-version: '14.1-beta'
            
-    - name: make (g++ 9)
-      run: |
-        make clean
-        make CXX=g++-9 agc
-        make clean
+#    - name: make (g++ 9)
+#      run: |
+#        make clean
+#        make CXX=g++-9 agc
+#        make clean
         
-    - name: make (g++ 10)
-      run: |
-        make CXX=g++-10 agc
-        make clean
+#    - name: make (g++ 10)
+#      run: |
+#        make CXX=g++-10 agc
+#        make clean
         
     - name: make (g++ 11)
       run: |
-        make CXX=g++-11 agc
         make clean
+        make CXX=g++-11 agc
         
-    - name: make (default)
-      run: |
-        make agc
+    #- name: make (default)
+    #  run: |
+    #    make agc
       
     - name: Print usage
       run: |
-        $EXE --help
+        $EXE_AGC --help
     
  
   
   ########################################################################################
   
   camp-tests:
+    strategy:
+      matrix:
+        runner: [mac-self-hosted-M1, mac-self-hosted-Intel]
     name: mini CAMP tests
-    runs-on: [mac-self-hosted , agc]
+    runs-on: ['${{ matrix.runner }}']
     needs: make-tests
     env:
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      FASTA: camp/FASTA-GZ
      OUT_NAME: test-camp
@@ -77,6 +103,7 @@ jobs:
         
     - name: camp all together
       run: |
+        rm -f $DATA/agc
         cp agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
@@ -85,6 +112,7 @@ jobs:
 
     - name: camp one by one
       run: |
+        rm -f $DATA/agc
         cp agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
@@ -96,11 +124,14 @@ jobs:
   
   
   camp-tests-params:
+    strategy:
+      matrix:
+        runner: [mac-self-hosted-M1, mac-self-hosted-Intel]
     name: mini CAMP tests params
-    runs-on: [mac-self-hosted, agc]
+    runs-on: ['${{ matrix.runner }}']
     needs: camp-tests
     env:
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      FASTA: camp/FASTA-GZ
      OUT_NAME: test-camp
@@ -115,6 +146,7 @@ jobs:
         
     - name: camp all together PAR $PARAMS
       run: |
+        rm -f $DATA/agc
         cp agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
@@ -123,6 +155,7 @@ jobs:
 
     - name: camp one by one $PARAMS
       run: |
+        rm -f $DATA/agc
         cp agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
@@ -133,11 +166,14 @@ jobs:
   ########################################################################################
   
   salmo-tests:
+    strategy:
+      matrix:
+        runner: [mac-self-hosted-M1, mac-self-hosted-Intel]
     name: mini SALMO tests
-    runs-on: [mac-self-hosted, agc]
+    runs-on: ['${{ matrix.runner }}']
     needs: make-tests
     env:
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      FASTA: salmo/FASTA-GZ
      OUT_NAME: test-salmo
@@ -149,6 +185,7 @@ jobs:
         
     - name: salmo all together
       run: |
+        rm -f $DATA/agc
         cp agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
@@ -158,6 +195,7 @@ jobs:
         
     - name: salmo one by one
       run: |
+        rm -f $DATA/agc
         cp agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
@@ -167,11 +205,14 @@ jobs:
   ########################################################################################
   
   salmo-tests-params:
+    strategy:
+      matrix:
+        runner: [mac-self-hosted-M1, mac-self-hosted-Intel]
     name: mini SALMO tests params
-    runs-on: [mac-self-hosted, agc]
+    runs-on: ['${{ matrix.runner }}']
     needs: salmo-tests
     env:
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      FASTA: salmo/FASTA-GZ
      OUT_NAME: test-salmo
@@ -184,6 +225,7 @@ jobs:
         
     - name: salmo all together
       run: |
+        rm -f $DATA/agc
         cp agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
@@ -192,6 +234,7 @@ jobs:
 
     - name: salmo one by one
       run: |
+        rm -f $DATA/agc
         cp agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
@@ -201,11 +244,14 @@ jobs:
   ########################################################################################
   
   covid-tests:
+    strategy:
+      matrix:
+        runner: [mac-self-hosted-M1, mac-self-hosted-Intel]
     name: mini covid tests
-    runs-on: [mac-self-hosted, agc]
+    runs-on: ['${{ matrix.runner }}']
     needs: make-tests
     env:
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      REF: covid/covid_ref.fa
      FASTA: covid/covid_rest_mini.fa
@@ -219,12 +265,13 @@ jobs:
         
     - name: covid all together create + getcol
       run: |
+        rm -f $DATA/agc
         cp agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME
         mkdir $OUT_NAME
-        $EXE create -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
-        $EXE getcol -l $LINE_LEN -o $OUT_NAME -t 32 $OUT_NAME/$OUT_NAME.agc
+        $EXE_AGC create -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
+        $EXE_AGC getcol -l $LINE_LEN -o $OUT_NAME -t 32 $OUT_NAME/$OUT_NAME.agc
         cd $OUT_NAME
         for f in *fa; do md5sum $f >> md5_all; done
         cmp md5_all ../covid/md5_all
@@ -233,19 +280,20 @@ jobs:
 
     - name: covid all together create -a + getset
       run: |
+        rm -f $DATA/agc
         cp agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME
         mkdir $OUT_NAME
-        $EXE create -a -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
-        $EXE listset $OUT_NAME/$OUT_NAME.agc > $OUT_NAME/$SET_LIST
+        $EXE_AGC create -a -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
+        $EXE_AGC listset $OUT_NAME/$OUT_NAME.agc > $OUT_NAME/$SET_LIST
         NUM_SMPL=`cat $OUT_NAME/$SET_LIST | wc -l`
         for ((i=1; i<=$NUM_SMPL; i++))
         do
           echo $i
           SMPL=`sed " $i q;d" $OUT_NAME/$SET_LIST`
           echo "./agc getset -l $LINE_LEN $OUT_NAME/$OUT_NAME.agc $SMPL > $OUT_NAME/$SMPL.fa"
-          $EXE getset -l $LINE_LEN $OUT_NAME/$OUT_NAME.agc $SMPL > $OUT_NAME/$SMPL.fa
+          $EXE_AGC getset -l $LINE_LEN $OUT_NAME/$OUT_NAME.agc $SMPL > $OUT_NAME/$SMPL.fa
         done
         cd $OUT_NAME
         for f in *fa; do md5sum $f >> md5_all; done
@@ -255,20 +303,21 @@ jobs:
 
     - name: covid all together create -a + append + getset
       run: |
+        rm -f $DATA/agc
         cp agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME
         mkdir $OUT_NAME
-        $EXE create -a -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
-        $EXE append -a -c  $OUT_NAME/$OUT_NAME.agc $FASTA2 > $OUT_NAME/$OUT_NAME-APPEND.agc
-        $EXE listset $OUT_NAME/$OUT_NAME-APPEND.agc > $OUT_NAME/$SET_LIST
+        $EXE_AGC create -a -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
+        $EXE_AGC append -a -c  $OUT_NAME/$OUT_NAME.agc $FASTA2 > $OUT_NAME/$OUT_NAME-APPEND.agc
+        $EXE_AGC listset $OUT_NAME/$OUT_NAME-APPEND.agc > $OUT_NAME/$SET_LIST
         NUM_SMPL=`cat $OUT_NAME/$SET_LIST | wc -l`
         for ((i=1; i<=$NUM_SMPL; i++))
         do
           echo $i
           SMPL=`sed " $i q;d" $OUT_NAME/$SET_LIST`
           echo "./agc getset -l $LINE_LEN $OUT_NAME/$OUT_NAME-APPEND.agc $SMPL > $OUT_NAME/$SMPL.fa"
-          $EXE getset -l $LINE_LEN $OUT_NAME/$OUT_NAME-APPEND.agc $SMPL > $OUT_NAME/$SMPL.fa
+          $EXE_AGC getset -l $LINE_LEN $OUT_NAME/$OUT_NAME-APPEND.agc $SMPL > $OUT_NAME/$SMPL.fa
         done
         cd $OUT_NAME
         for f in *fa; do md5sum $f >> md5_all; done
@@ -279,11 +328,14 @@ jobs:
   ########################################################################################
   
   covid-tests-params:
+    strategy:
+      matrix:
+        runner: [mac-self-hosted-M1, mac-self-hosted-Intel]
     name: mini covid tests params
-    runs-on: [mac-self-hosted, agc]
+    runs-on: ['${{ matrix.runner }}']
     needs: covid-tests
     env:
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      REF: covid/covid_ref.fa
      FASTA: covid/covid_rest_mini.fa
@@ -298,12 +350,13 @@ jobs:
         
     - name: covid all together create + getcol
       run: |
+        rm -f $DATA/agc
         cp agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME
         mkdir $OUT_NAME
-        $EXE create $PARAMS -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
-        $EXE getcol -l $LINE_LEN -o $OUT_NAME -t 32 $OUT_NAME/$OUT_NAME.agc
+        $EXE_AGC create $PARAMS -c -t 32 -o $OUT_NAME/$OUT_NAME.agc $REF $FASTA
+        $EXE_AGC getcol -l $LINE_LEN -o $OUT_NAME -t 32 $OUT_NAME/$OUT_NAME.agc
         cd $OUT_NAME
         for f in *fa; do md5sum $f >> md5_all; done
         cmp md5_all ../covid/md5_all
@@ -315,11 +368,14 @@ jobs:
   ########################################################################################
   
   hprc-tests:
+    strategy:
+      matrix:
+        runner: [mac-self-hosted-M1, mac-self-hosted-Intel]
     name: mini HPRC tests
-    runs-on: [mac-self-hosted, agc]
+    runs-on: ['${{ matrix.runner }}']
     needs: [camp-tests-params, salmo-tests-params, covid-tests-params]
     env:
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      FASTA: hprc/FASTA-GZ
      OUT_NAME: test-hprc
@@ -331,6 +387,7 @@ jobs:
         
     - name: hprc all together
       run: |
+        rm -f $DATA/agc
         cp agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
@@ -348,11 +405,14 @@ jobs:
   ########################################################################################
   
   hprc-tests-params:
+    strategy:
+      matrix:
+        runner: [mac-self-hosted-M1, mac-self-hosted-Intel]
     name: mini HPRC tests params
-    runs-on: [mac-self-hosted, agc]
+    runs-on: ['${{ matrix.runner }}']
     needs: [hprc-tests]
     env:
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      FASTA: hprc/FASTA-GZ
      OUT_NAME: test-hprc
@@ -366,6 +426,7 @@ jobs:
         
     - name: hprc all together
       run: |
+        rm -f $DATA/agc
         cp agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
@@ -374,6 +435,7 @@ jobs:
 
     - name: hprc one by one
       run: |
+        rm -f $DATA/agc
         cp agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
@@ -383,11 +445,14 @@ jobs:
   ########################################################################################
   
   hgsvc-tests-all:
-    name: mini HGSVC tests
-    runs-on: [mac-self-hosted, agc]
+    strategy:
+      matrix:
+        runner: [mac-self-hosted-M1, mac-self-hosted-Intel]
+    name: mini HGSVC tests all
+    runs-on: ['${{ matrix.runner }}']
     needs: [hprc-tests-params]
     env:
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      FASTA: hgsvc/FASTA-GZ
      OUT_NAME: test-hgsvc
@@ -398,6 +463,7 @@ jobs:
         
     - name: hgsvc all together
       run: |
+        rm -f $DATA/agc
         cp agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
@@ -407,11 +473,14 @@ jobs:
   ########################################################################################
   
   hgsvc-tests-append:
+    strategy:
+      matrix:
+        runner: [mac-self-hosted-M1, mac-self-hosted-Intel]
     name: mini HGSVC tests
-    runs-on: [mac-self-hosted, agc]
+    runs-on: ['${{ matrix.runner }}']
     needs: [hprc-tests-params]
     env:
-     EXE: ./agc
+     EXE_AGC: ./agc
      DATA: ../../../../data/
      FASTA: hgsvc/FASTA-GZ
      OUT_NAME: test-hgsvc
@@ -423,6 +492,7 @@ jobs:
  
     - name: hgsvc one by one
       run: |
+        rm -f $DATA/agc
         cp agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
