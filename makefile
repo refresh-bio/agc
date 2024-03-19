@@ -60,9 +60,9 @@ endif
 
 AR 	= ar
 CFLAGS	= -fPIC -Wall -g -O3 $(ARCH_FLAGS) -std=c++17 -pthread -I $(INCLUDE_DIR) -fpermissive
-#CLINK	= -lm -static -O -Wl,--whole-archive -lpthread -Wl,--no-whole-archive -std=c++17
+CLINK	= -lm -static -O -Wl,--whole-archive -lpthread -Wl,--no-whole-archive -std=c++17 -lc
 #CLINK	= -lm -lz -lpthread -std=c++17
-CLINK	= -lm -lpthread -std=c++17 -lc
+#CLINK	= -lm -lpthread -std=c++17 -lc
 PY_CFLAGS = -Wl,-undefined,dynamic_lookup -fPIC -Wall -shared -std=c++17  -O3 -I $(INCLUDE_DIR)
 
 ifeq ($(uname_S),Linux)
