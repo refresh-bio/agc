@@ -107,7 +107,7 @@ For detailed instructions on how to set up Bioconda, please refer to the [Biocon
 
 
 ## Version history
-* 3.1 (18 Mar 2014)
+* 3.1 (18 Mar 2024)
   * Improved compression speed for gzipped input.
   * Support for ARM-based CPUs (e.g., Mac M1/M2/...).
   * Reporting reference sample name.
