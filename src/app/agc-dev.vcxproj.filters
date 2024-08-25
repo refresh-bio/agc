@@ -25,9 +25,6 @@
     <ClCompile Include="..\core\segment.cpp">
       <Filter>Source files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\libs\mimalloc\override-new-delete.cpp">
-      <Filter>Library files</Filter>
-    </ClCompile>
     <ClCompile Include="..\core\agc_compressor.cpp">
       <Filter>Source files</Filter>
     </ClCompile>
@@ -36,6 +33,21 @@
     </ClCompile>
     <ClCompile Include="..\core\agc_decompressor_lib.cpp">
       <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\core\collection_v3.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\core\collection_v2.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\core\collection_v1.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\core\utils.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\3rd_party\mimalloc\src\static.c">
+      <Filter>Library files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -75,12 +87,6 @@
     <ClInclude Include="..\core\utils.h">
       <Filter>Header files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\libs\zstd.h">
-      <Filter>Library files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\libs\zstd_errors.h">
-      <Filter>Library files</Filter>
-    </ClInclude>
     <ClInclude Include="..\core\agc_compressor.h">
       <Filter>Header files</Filter>
     </ClInclude>
@@ -93,35 +99,18 @@
     <ClInclude Include="..\core\agc_decompressor_lib.h">
       <Filter>Header files</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <Library Include="..\..\libs\Release\libzstd_static.lib">
-      <Filter>Library files\Release</Filter>
-    </Library>
-    <Library Include="..\..\libs\mimalloc\mimalloc-static.lib">
-      <Filter>Library files\Release</Filter>
-    </Library>
-    <Library Include="..\..\libs\Release\Raduls.lib">
-      <Filter>Library files\Release</Filter>
-    </Library>
-    <Library Include="..\..\libs\Release\zlibstat.lib">
-      <Filter>Library files\Release</Filter>
-    </Library>
-    <Library Include="..\..\libs\Debug\libzstd_static.lib">
-      <Filter>Library files\Debug</Filter>
-    </Library>
-    <Library Include="..\..\libs\mimalloc\mimalloc-static-debug.lib">
-      <Filter>Library files\Debug</Filter>
-    </Library>
-    <Library Include="..\..\libs\Debug\zlibstat.lib">
-      <Filter>Library files\Debug</Filter>
-    </Library>
-    <Library Include="..\..\libs\Debug\Raduls.lib">
-      <Filter>Library files\Debug</Filter>
-    </Library>
-    <Library Include="..\..\libs\cloudflare-zlib\zlib.lib">
+    <ClInclude Include="..\core\collection_v3.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\collection_v2.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\collection_v1.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\libs\file_wrapper.h">
       <Filter>Library files</Filter>
-    </Library>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Header files">
@@ -132,12 +121,6 @@
     </Filter>
     <Filter Include="Library files">
       <UniqueIdentifier>{dae35935-931a-479e-85bb-e79d01aa7edd}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Library files\Debug">
-      <UniqueIdentifier>{32630fa5-8cfd-4577-8a14-4020b7088a13}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Library files\Release">
-      <UniqueIdentifier>{095443d5-e0d4-4e34-85a2-75d44dd59511}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

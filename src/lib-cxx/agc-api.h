@@ -2,10 +2,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.0
-// Date   : 2022-04-05
+// Version: 3.1
+// Date   : 2022-12-22
 // *******************************************************************************************
 
 #ifndef AGC_API_H
@@ -84,6 +84,13 @@ public:
 	int ListSample(std::vector<std::string>& samples) const;
 
 	/**
+	 * @param samples  vector of strings with sample names (returned value)
+	 *
+	 * @return number of samples to be written to
+	 */
+	int GetReferenceSample(std::string& sample) const;
+
+	/**
 	 * @param sample    sample name; can be an empty string
 	 * @param names     vector of strings with contig names (returned value)
 	 *
@@ -159,6 +166,13 @@ EXTERNC int agc_n_ctg(const agc_t *agc, const char *sample);
 
 /**
  * @param agc       agc handle
+ *
+ * @return NULL-terminated string. Use agc_string_destroy() to deallocate.
+ */
+EXTERNC char* agc_reference_sample(const agc_t* agc);
+
+/**
+ * @param agc       agc handle
  * @param n_sample  number of samples to be written to (returned value)
  *
  * @return array of NULL-terminated strings. Use agc_list_destroy() to deallocate.
@@ -180,6 +194,13 @@ EXTERNC char **agc_list_ctg(const agc_t *agc, const char *sample, int *n_ctg);
  * @param list      array to deallocate
  */
 EXTERNC int agc_list_destroy(char **list);
+
+/**
+ * Deallocate string returned by agc_reference_sample
+ *
+ * @param sample	string to deallocate
+ */
+EXTERNC int agc_string_destroy(char *sample);
 
 #endif
 

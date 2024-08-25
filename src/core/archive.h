@@ -5,10 +5,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.0
-// Date   : 2022-04-05
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
 #include <cstdio>
@@ -20,6 +20,7 @@
 #include <thread>
 #include <mutex>
 #include "../core/io.h"
+#include "../core/utils.h"
 
 using namespace std;
 
@@ -55,11 +56,46 @@ class CArchive
 	map<int, vector<pair<vector<uint8_t>, uint64_t>>> m_buffer;
 
 	vector<stream_t> v_streams;
-	unordered_map<string, size_t> rm_streams;
+	unordered_map<string, size_t, MurMurStringsHash> rm_streams;
+	string lazy_prefix;
+
 	mutex mtx;
 
 	bool serialize();
 	bool deserialize();
+
+	// *******************************************************************************************
+	inline bool is_lazy_str(const string& str)
+	{
+		if (!input_mode)
+			return false;
+
+		if (lazy_prefix.empty())
+			return false;
+
+		if (str.size() <= lazy_prefix.size())
+			return false;
+
+		const char* p = str.c_str();
+		const char* q = lazy_prefix.c_str();
+
+		while (*p == *q)
+			++p, ++q;
+
+		return *q == 0;
+	}
+
+	// *******************************************************************************************
+	void de_lazy()
+	{
+		rm_streams.reserve(2 * v_streams.size());
+
+		for(size_t i = 0; i < v_streams.size(); ++i)
+			if(is_lazy_str(v_streams[i].stream_name))
+				rm_streams[v_streams[i].stream_name] = i;
+
+		lazy_prefix.clear();
+	}
 
 	// *******************************************************************************************
 	template<typename T>
@@ -123,9 +159,12 @@ class CArchive
 	// *******************************************************************************************
 	bool add_part(const int stream_id, const vector<uint8_t>& v_data, const uint64_t metadata);
 	bool flush_out_buffers();
+	int get_stream_id(const string& stream_name);
+	bool get_part(const int stream_id, vector<uint8_t>& v_data, uint64_t& metadata);
+	bool get_part(const int stream_id, const int part_id, vector<uint8_t>& v_data, uint64_t& metadata);
 
 public:
-	CArchive(const bool _input_mode, const size_t _io_buffer_size = 64 << 20);
+	CArchive(const bool _input_mode, const size_t _io_buffer_size = 64 << 20, const string& _lazy_prefix = "");
 	~CArchive();
 
 	bool Open(const string &file_name);
@@ -145,7 +184,18 @@ public:
 	bool FlushOutBuffers();
 
 	bool GetPart(const int stream_id, vector<uint8_t> &v_data, uint64_t &metadata);
-	bool GetPart(const int stream_id, const int part_id, vector<uint8_t> &v_data, uint64_t &metadata);
+	bool GetPart(const int stream_id, const int part_id, vector<uint8_t>& v_data, uint64_t& metadata);
+
+	pair<int, bool> GetPart(const string &stream_name, vector<uint8_t> &v_data, uint64_t &metadata);
+	pair<int, bool> GetPart(const string& stream_name, const int part_id, vector<uint8_t> &v_data, uint64_t &metadata);
+
+	tuple<int, bool, int, bool> GetParts(
+		const string &stream_name1, vector<uint8_t> &v_data1, uint64_t &metadata1,
+		const string& stream_name2, vector<uint8_t>& v_data2, uint64_t& metadata2);
+	tuple<int, bool, int, bool> GetParts(
+		const string& stream_name1, const int part_id1, vector<uint8_t> &v_data1, uint64_t &metadata1,
+		const string& stream_name2, const int part_id2, vector<uint8_t> &v_data2, uint64_t &metadata2);
+
 	void SetRawSize(const int stream_id, const size_t raw_size);
 	size_t GetRawSize(const int stream_id);
 

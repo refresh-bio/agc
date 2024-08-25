@@ -1,0 +1,18 @@
+[submodule "3rd_party/zstd"]
+	path = 3rd_party/zstd
+	url = https://github.com/refresh-bio-dependencies/zstd.git
+[submodule "3rd_party/mimalloc"]
+	path = 3rd_party/mimalloc
+	url = https://github.com/refresh-bio-dependencies/mimalloc.git
+[submodule "3rd_party/raduls-inplace"]
+	path = 3rd_party/raduls-inplace
+	url = https://github.com/refresh-bio-sandbox/RADULS-inplace-dev.git
+[submodule "3rd_party/isa-l"]
+	path = 3rd_party/isa-l
+	url = https://github.com/refresh-bio-dependencies/isa-l.git
+[submodule "3rd_party/zlib-ng"]
+	path = 3rd_party/zlib-ng
+	url = https://github.com/refresh-bio-dependencies/zlib-ng.git
+[submodule "3rd_party/libdeflate"]
+	path = 3rd_party/libdeflate
+	url = https://github.com/refresh-bio-dependencies/libdeflate.git

@@ -5,19 +5,20 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.0
-// Date   : 2022-04-05
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
 #include <map>
+#include <array>
 #include <vector>
 #include <string>
 #include <mutex>
 #include <chrono>
 #include "../core/utils.h"
-#include "../../libs/zstd.h"
+#include <zstd.h>
 
 using namespace std;
 using namespace std::chrono;
@@ -38,7 +39,7 @@ struct segment_desc_t
 		group_id(_group_id), in_group_id(_in_group_id), is_rev_comp(_is_rev_comp), raw_length(_raw_length)
 	{}
 };
-
+	
 // *******************************************************************************************
 struct pair_segment_desc_t
 {
@@ -65,11 +66,35 @@ struct contig_info_t
 };
 
 // *******************************************************************************************
+struct segments_to_place_t {
+	string sample_name;
+	string contig_name;
+	uint32_t seg_part_no;
+	int group_id;
+	int in_group_id;
+	bool is_rev_comp;
+	uint32_t data_size;
+
+	segments_to_place_t(string _sample_name, string _contig_name, uint32_t _seg_part_no, int _group_id, int _in_group_id, bool _is_rev_comp, uint32_t _data_size) :
+		sample_name(_sample_name),
+		contig_name(_contig_name),
+		seg_part_no(_seg_part_no),
+		group_id(_group_id),
+		in_group_id(_in_group_id),
+		is_rev_comp(_is_rev_comp),
+		data_size(_data_size) {}
+
+	segments_to_place_t() = default;
+	segments_to_place_t(const segments_to_place_t&) = default;
+};
+
+// *******************************************************************************************
 using sample_desc_t = vector<pair<string, vector<segment_desc_t>>>;
 
 // *******************************************************************************************
 class CCollection
 {
+protected:
 	mutex mtx;
 
 	const uint32_t thr_1 = 1u << 7;
@@ -88,21 +113,7 @@ class CCollection
 
 	const uint8_t pref_arr[16] = { 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 4, 5};
 
-	uint32_t details_batch_size = 1;
-
 	ZSTD_DCtx* zstd_dctx = nullptr;
-
-	typedef map<string, vector<pair<string, vector<segment_desc_t>>>> col_t;
-
-	col_t col;
-	map<pair<string, string>, pair<uint32_t, uint32_t>> contig_ids_no_seg;
-	multimap<string, string> mm_contig2sample;
-	map<string, uint32_t> sample_ids;
-	vector<string> v_sample_name;
-	vector<contig_info_t> v_contig_info;
-	bool maps_built = false;
-
-	vector<pair<vector<uint8_t>, size_t>> v_zstd_batches;
 
 	vector<pair<string, string>> cmd_lines;
 
@@ -161,37 +172,20 @@ class CCollection
 
 	void read(uint8_t*& p, uint32_t& num)
 	{
-//		num = 0;
-
 		if ((*p & mask_1) == pref_1)
 			num = *p++ - pref_1;
 		else if ((*p & mask_2) == pref_2)
 		{
-/*			num = *p++ - pref_2;
-			num <<= 8;		num += *p++;
-			num += thr_1;*/
-
 			num = ((uint32_t)p[0] << 8) + p[1] + thr_1 - (pref_2 << 8);
 			p += 2;
 		}
 		else if ((*p & mask_3) == pref_3)
 		{
-/*			num = *p++ - pref_3;
-			num <<= 8;		num += *p++;
-			num <<= 8;		num += *p++;
-			num += thr_2;*/
-
 			num = ((uint32_t) p[0] << 16) + ((uint32_t) p[1] << 8) + p[2] + thr_2 - (pref_3 << 16);
 			p += 3;
 		}
 		else if ((*p & mask_4) == pref_4)
 		{
-/*			num = *p++ - pref_4;
-			num <<= 8;		num += *p++;
-			num <<= 8;		num += *p++;
-			num <<= 8;		num += *p++;
-			num += thr_3;*/
-
 			num = ((uint32_t)p[0] << 24) + ((uint32_t)p[1] << 16) + ((uint32_t)p[2] << 8) + p[3] + thr_3 - (pref_4 << 24);
 			p += 4;
 		}
@@ -206,6 +200,16 @@ class CCollection
 		}
 	}
 
+	void read_fixed32(vector<uint8_t>::iterator& p, uint32_t& num)
+	{
+		num = 0;
+
+		for (int i = 0; i < 4; ++i)
+			num += ((uint32_t)p[i]) << (8 * i);
+
+		p += 4;
+	}
+
 	void skip(uint8_t*& p)
 	{
 		auto x = pref_arr[*p >> 4];
@@ -215,95 +219,31 @@ class CCollection
 	string extract_contig_name(const string& s);
 	bool is_equal_sample_contig(const pair<string, string>& x, const pair<string, string>& y);
 
-	vector<segment_desc_t> & add_segment_basic(const string& sample_name, const string& contig_name, const uint32_t group_id, const uint32_t in_group_id, const bool is_rev_comp, const uint32_t raw_length);
-
-	vector<string> get_sample_original_order();
-	void decompress_sample_details(uint32_t i_sample);
-	void deserialize_contig_details_group_id(uint8_t*& p, vector<segment_desc_t>& contig_segments);
-	void deserialize_contig_details_in_group_id(uint8_t*& p, vector<segment_desc_t>& contig_segments);
-	void deserialize_contig_details_raw_length(uint8_t*& p, vector<segment_desc_t>& contig_segments);
-	void deserialize_contig_details_orientation(uint8_t*& p, vector<segment_desc_t>& contig_segments);
-
 public:
 	CCollection() {};
-	~CCollection() { 
+	virtual ~CCollection() { 
 		if (zstd_dctx)
 			ZSTD_freeDCtx(zstd_dctx);
 	};
 
-	CCollection(const CCollection& x)
-	{
-//		lock_guard<mutex> lck(x.mtx);
+	virtual bool register_sample_contig(const string& sample_name, const string& contig_name) = 0;
 
-		if (x.zstd_dctx)
-			zstd_dctx = ZSTD_createDCtx();
-		else
-			zstd_dctx = nullptr;
+	virtual void add_segment_placed(const string& sample_name, const string& contig_name, const uint32_t place, const uint32_t group_id, const uint32_t in_group_id, const bool is_rev_comp, const uint32_t raw_length) = 0;
+	virtual bool get_reference_name(string& reference_name) = 0;
+	virtual bool get_samples_list(vector<string>& v_samples) = 0;
+	virtual bool get_contig_list_in_sample(const string& sample_name, vector<string>& v_contig_names) = 0;
 
-		col = x.col;
-		contig_ids_no_seg = x.contig_ids_no_seg;
-		mm_contig2sample = x.mm_contig2sample;
-		sample_ids = x.sample_ids;
-		v_sample_name = x.v_sample_name;
-		v_contig_info = x.v_contig_info;
-		maps_built = x.maps_built;
+	virtual bool get_sample_desc(const string& sample_name, vector<pair<string, vector<segment_desc_t>>>& sample_desc) = 0;
+	virtual bool get_contig_desc(const string& sample_name, string& contig_name, vector<segment_desc_t>& contig_desc) = 0;
 
-		v_zstd_batches = x.v_zstd_batches;
-
-		cmd_lines = x.cmd_lines;
-	}
-
-	CCollection& operator=(const CCollection& x)
-	{
-		if (this == &x)
-			return *this;
-
-		if (x.zstd_dctx)
-			zstd_dctx = ZSTD_createDCtx();
-		else
-			zstd_dctx = nullptr;
-
-		col = x.col;
-		contig_ids_no_seg = x.contig_ids_no_seg;
-		mm_contig2sample = x.mm_contig2sample;
-		sample_ids = x.sample_ids;
-		v_sample_name = x.v_sample_name;
-		v_contig_info = x.v_contig_info;
-		maps_built = x.maps_built;
-
-		v_zstd_batches = x.v_zstd_batches;
-
-		cmd_lines = x.cmd_lines;
-
-		return *this;
-	}
-
-	bool register_sample_contig(const string& sample_name, const string& contig_name);
-	void add_segment_append(const string& sample_name, const string& contig_name, const uint32_t group_id, const uint32_t in_group_id, const bool is_rev_comp, const uint32_t raw_length);
-	void add_segment_placed(const string& sample_name, const string& contig_name, const uint32_t place, const uint32_t group_id, const uint32_t in_group_id, const bool is_rev_comp, const uint32_t raw_length);
-
-	bool get_reference_name(string &reference_name);
-	bool get_samples_list(vector<string>& v_samples);
-	bool get_contig_list_in_sample(const string& sample_name, vector<string>& v_contig_names);
-	bool get_samples_info(map<string, vector<string>>& v_samples);
-	bool get_sample_desc(const string& sample_name, vector<pair<string, vector<segment_desc_t>>>& sample_desc);
-	bool get_contig_desc(const string& sample_name, string& contig_name, vector<segment_desc_t>& contig_desc);
-	bool is_contig_desc(const string& sample_name, const string& contig_name);
-	vector<string> get_samples_for_contig(const string& contig_name);
+	virtual bool is_contig_desc(const string& sample_name, const string& contig_name) = 0;
+	virtual vector<string> get_samples_for_contig(const string& contig_name) = 0;
 
 	void add_cmd_line(const string &cmd);
-
 	void get_cmd_lines(vector<pair<string, string>>& _cmd_lines);
 
-	size_t get_no_samples();
-	int32_t get_no_contigs(const string& sample_name);
-
-	void serialize_v1(vector<uint8_t>& data, bool store_date_time);
-	void serialize_v2(vector<uint8_t>& data_main, vector<vector<uint8_t>>& data_details, bool store_date_time, uint32_t details_batch_size);
-
-	bool deserialize_v1(vector<uint8_t>& data);
-	bool deserialize_v2_main(vector<uint8_t>& data_main, bool create_maps);
-	bool deserialize_v2_details(vector<uint8_t>& zstd_data_details, size_t raw_size, bool deserialize_details);
+	virtual size_t get_no_samples() = 0;
+	virtual int32_t get_no_contigs(const string& sample_name) = 0;
 };
 
 // EOF

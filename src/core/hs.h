@@ -5,15 +5,19 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.0
-// Date   : 2022-04-05
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
+#if defined(ARCH_X64)
 #include <mmintrin.h>
-#include <cstdint>
 #include <xmmintrin.h>
+#elif defined(ARCH_ARM)
+#include <arm_neon.h>
+#endif
+#include <cstdint>
 #include <cstddef>
 
 #include <algorithm>
@@ -393,8 +397,9 @@ template<typename Key_t,
 			restruct(_requested_reserve);
 		}
 
-		//	T& operator[](const key_type& k);
-
+		// *******************************************************************************************
+//		T& operator[](const key_type& k)
+		
 		// *******************************************************************************************
 		template <typename InputIterator>
 		void insert(InputIterator first, InputIterator last)
@@ -484,6 +489,7 @@ template<typename Key_t,
 		bool check(const key_type& key)
 		{
 			return _check_noinline(key, hash(key) & allocated_mask);
+//			return _check(key, hash(key) & allocated_mask);
 
 /*			size_t pos = _find(key, hash(key) & allocated_mask);
 

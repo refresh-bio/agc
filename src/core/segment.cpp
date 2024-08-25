@@ -2,16 +2,16 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.0
-// Date   : 2022-04-05
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
 #include "../core/segment.h"
 
 // *******************************************************************************************
-uint32_t CSegment::add_raw(const contig_t& s, bool buffered, ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx)
+uint32_t CSegment::add_raw(const contig_t& s, ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx)
 {
     lock_guard<mutex> lck(mtx);
 
@@ -20,7 +20,7 @@ uint32_t CSegment::add_raw(const contig_t& s, bool buffered, ZSTD_CCtx* zstd_cct
 
     if (v_raw.size() == contigs_in_pack)
     {
-        store_in_archive(v_raw, buffered, zstd_cctx);
+        store_in_archive(v_raw, zstd_cctx);
         v_raw.clear();
     }
 
@@ -31,7 +31,7 @@ uint32_t CSegment::add_raw(const contig_t& s, bool buffered, ZSTD_CCtx* zstd_cct
 }
 
 // *******************************************************************************************
-uint32_t CSegment::add(const contig_t& s, bool buffered, ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx)
+uint32_t CSegment::add(const contig_t& s, ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx)
 {
     lock_guard<mutex> lck(mtx);
 
@@ -42,7 +42,7 @@ uint32_t CSegment::add(const contig_t& s, bool buffered, ZSTD_CCtx* zstd_cctx, Z
     {
         lz_diff->Prepare(s);
 
-        store_in_archive(s, buffered, zstd_cctx);
+        store_in_archive(s, zstd_cctx);
 
         ref_size = s.size() + 1;
     }
@@ -50,7 +50,7 @@ uint32_t CSegment::add(const contig_t& s, bool buffered, ZSTD_CCtx* zstd_cctx, Z
     {
         if (v_lzp.size() == contigs_in_pack)
         {
-            store_in_archive(v_lzp, buffered, zstd_cctx);
+            store_in_archive(v_lzp, zstd_cctx);
             v_lzp.clear();
         }
 
@@ -64,13 +64,14 @@ uint32_t CSegment::add(const contig_t& s, bool buffered, ZSTD_CCtx* zstd_cctx, Z
 #endif
 
         auto p = find(v_lzp.begin(), v_lzp.end(), delta);
+        
         if (p != v_lzp.end())
             return no_seqs - distance(p, v_lzp.end());
 
-        v_lzp.push_back(delta);
-
         seq_size += s.size() + 1;
         packed_size += delta.size() + 1;
+
+        v_lzp.emplace_back(move(delta));
     }
 
     ++no_seqs;
@@ -79,7 +80,7 @@ uint32_t CSegment::add(const contig_t& s, bool buffered, ZSTD_CCtx* zstd_cctx, Z
 }
 
 // *******************************************************************************************
-uint64_t CSegment::estimate(const contig_t& s, ZSTD_DCtx* zstd_dctx)
+uint64_t CSegment::estimate(const contig_t& s, uint32_t bound, ZSTD_DCtx* zstd_dctx)
 {
     lock_guard<mutex> lck(mtx);
 
@@ -89,11 +90,7 @@ uint64_t CSegment::estimate(const contig_t& s, ZSTD_DCtx* zstd_dctx)
     if (ref_size == 0)
         return 0;
     else
-    {
-        contig_t delta;
-        lz_diff->Encode(s, delta);
-        return delta.size();
-    }
+        return lz_diff->Estimate(s, bound);
 }
 
 // *******************************************************************************************
@@ -111,14 +108,20 @@ void CSegment::get_coding_cost(const contig_t& s, vector<uint32_t>& v_costs, con
 }
 
 // *******************************************************************************************
-void CSegment::finish(bool buffered, ZSTD_CCtx* zstd_ctx)
+size_t CSegment::get_ref_size()
+{
+    return ref_size;
+}
+
+// *******************************************************************************************
+void CSegment::finish(ZSTD_CCtx* zstd_ctx)
 {
     if (!v_lzp.empty())
-        store_in_archive(v_lzp, buffered, zstd_ctx);
+        store_in_archive(v_lzp, zstd_ctx);
     if (!v_raw.empty())
-        store_in_archive(v_raw, buffered, zstd_ctx);
+        store_in_archive(v_raw, zstd_ctx);
     if (!packed_delta.empty())
-        store_compressed_delta_in_archive(buffered);
+        store_compressed_delta_in_archive();
 }
 
 // *******************************************************************************************
@@ -130,11 +133,10 @@ bool CSegment::get_raw(const uint32_t id_seq, contig_t& ctg, ZSTD_DCtx* zstd_ctx
     vector<uint8_t> zstd_raw_seq;
     uint64_t raw_seq_size;
 
-    stream_id_delta = in_archive->GetStreamId(name + "-delta");
     int part_id = id_seq / contigs_in_pack;
     int seq_in_part_id = id_seq % contigs_in_pack;
 
-    in_archive->GetPart(stream_id_delta, part_id, zstd_raw_seq, raw_seq_size);
+    tie(stream_id_delta, ignore) = in_archive->GetPart(name + ss_delta_ext(archive_version), part_id, zstd_raw_seq, raw_seq_size);
 
     if (raw_seq_size == 0)
         pack_raw_seq = move(zstd_raw_seq);
@@ -175,10 +177,16 @@ bool CSegment::get(const uint32_t id_seq, contig_t& ctg, ZSTD_DCtx* zstd_ctx)
     // Retrive reference contig
     vector<uint8_t> ref_seq;
     vector<uint8_t> zstd_ref_seq;
-    uint64_t ref_seq_size;
 
-    stream_id_ref = in_archive->GetStreamId(name + "-ref");
-    in_archive->GetPart(stream_id_ref, 0, zstd_ref_seq, ref_seq_size);
+    vector<uint8_t> zstd_delta_seq;
+    uint64_t delta_seq_size;
+
+    uint64_t ref_seq_size;
+    int part_id = (id_seq - 1) / contigs_in_pack;
+
+    tie(stream_id_ref, ignore, stream_id_delta, ignore) = in_archive->GetParts(
+        name + ss_ref_ext(archive_version), 0, zstd_ref_seq, ref_seq_size,
+        name + ss_delta_ext(archive_version), part_id, zstd_delta_seq, delta_seq_size);
 
     if (ref_seq_size == 0)
         ref_seq = move(zstd_ref_seq);       // No compression
@@ -194,6 +202,7 @@ bool CSegment::get(const uint32_t id_seq, contig_t& ctg, ZSTD_DCtx* zstd_ctx)
             v_tuples.resize(ref_seq_size+1);
 
             auto output_size = ZSTD_decompressDCtx(zstd_ctx, v_tuples.data(), v_tuples.size(), zstd_ref_seq.data(), zstd_ref_seq.size() - 1u);
+
             v_tuples.resize(output_size);
             tuples2bytes(v_tuples, ref_seq);
         }
@@ -207,22 +216,22 @@ bool CSegment::get(const uint32_t id_seq, contig_t& ctg, ZSTD_DCtx* zstd_ctx)
 
     // Retrive pack of delta-coded contigs
     vector<uint8_t> delta_seq;
-    vector<uint8_t> pack_delta_seq;
-    vector<uint8_t> zstd_delta_seq;
-    uint64_t delta_seq_size;
 
-    stream_id_delta = in_archive->GetStreamId(name + "-delta");
-    int part_id = (id_seq - 1) / contigs_in_pack;
+    uint8_t* pack_delta_seq;
+    bool need_deallocate_pack_delta_seq = false;
+
     int seq_in_part_id = (id_seq - 1) % contigs_in_pack;
 
-    in_archive->GetPart(stream_id_delta, part_id, zstd_delta_seq, delta_seq_size);
-
     if (delta_seq_size == 0)
-        pack_delta_seq = move(zstd_delta_seq);
+    {
+        pack_delta_seq = zstd_delta_seq.data();
+        delta_seq_size = zstd_delta_seq.size();
+    }
     else
     {
-        pack_delta_seq.resize(delta_seq_size);
-        ZSTD_decompressDCtx(zstd_ctx, pack_delta_seq.data(), pack_delta_seq.size(), zstd_delta_seq.data(), zstd_delta_seq.size());
+        pack_delta_seq = new uint8_t[delta_seq_size];
+        need_deallocate_pack_delta_seq = true;
+        ZSTD_decompressDCtx(zstd_ctx, pack_delta_seq, delta_seq_size, zstd_delta_seq.data(), zstd_delta_seq.size());
     }
 
     if (contigs_in_pack > 1)
@@ -232,7 +241,7 @@ bool CSegment::get(const uint32_t id_seq, contig_t& ctg, ZSTD_DCtx* zstd_ctx)
         uint32_t e_pos = 0;
         int cnt = 0;
 
-        for (uint32_t i = 0; i < pack_delta_seq.size(); ++i)
+        for (uint32_t i = 0; i < delta_seq_size; ++i)
         {
             if (pack_delta_seq[i] == contig_separator)
             {
@@ -247,14 +256,17 @@ bool CSegment::get(const uint32_t id_seq, contig_t& ctg, ZSTD_DCtx* zstd_ctx)
             }
         }
 
-        delta_seq.assign(pack_delta_seq.begin() + b_pos, pack_delta_seq.begin() + e_pos);
+        delta_seq.assign(pack_delta_seq + b_pos, pack_delta_seq + e_pos);
     }
     else
-        delta_seq.assign(pack_delta_seq.begin(), pack_delta_seq.end() - 1);
+        delta_seq.assign(pack_delta_seq, pack_delta_seq + delta_seq_size - 1);
     
     // LZ decode delta-encoded contig
     ctg.clear();
     lz_diff->Decode(ref_seq, delta_seq, ctg);
+
+    if (need_deallocate_pack_delta_seq)
+        delete[] pack_delta_seq;
 
     return true;
 }
@@ -268,16 +280,16 @@ void CSegment::appending_init()
     // Retrive reference contig
     contig_t ref_seq;
     
-    int in_stream_id_ref = in_archive->GetStreamId(name + "-ref");
-    int in_stream_id_delta = in_archive->GetStreamId(name + "-delta");
+    int in_stream_id_ref = in_archive->GetStreamId(name + ss_ref_ext(archive_version));
+    int in_stream_id_delta = in_archive->GetStreamId(name + ss_delta_ext(archive_version));
 
     int out_stream_id_ref = -1;
     int out_stream_id_delta = -1;
 
     if(in_stream_id_ref >= 0)
-        out_stream_id_ref = out_archive->RegisterStream(name + "-ref");
+        out_stream_id_ref = out_archive->RegisterStream(name + ss_ref_ext(archive_version));
     if(in_stream_id_delta >= 0)
-        out_stream_id_delta = out_archive->RegisterStream(name + "-delta");
+        out_stream_id_delta = out_archive->RegisterStream(name + ss_delta_ext(archive_version));
 
     // Copy of all parts except last one
     if (in_stream_id_ref >= 0)
@@ -349,6 +361,7 @@ void CSegment::unpack(ZSTD_DCtx* zstd_ctx)
         else
         {
             vector<uint8_t> v_tuples;
+
             v_tuples.resize(raw_ref_seq_size + 1);
 
             auto output_size = ZSTD_decompressDCtx(zstd_ctx, v_tuples.data(), v_tuples.size(), packed_ref_seq.data(), packed_ref_seq.size() - 1u);

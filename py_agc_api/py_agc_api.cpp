@@ -15,7 +15,14 @@ PYBIND11_MODULE(py_agc_api, m) {
 	m.doc() = "Python wrapper for AGC_API."; // optional module docstring
 	
     // StringVector can be used in Python code (binding std::vector<std::string>)
-    py::bind_vector<std::vector<std::string>>(m, "StringVector");
+    py::bind_vector<std::vector<std::string>>(m, "StringVector")
+        .def(py::init<>())
+        .def("clear", &std::vector<std::string>::clear)
+        .def("pop_back", &std::vector<std::string>::pop_back)
+        .def("__len__", [](const std::vector<std::string> &v) { return v.size(); })
+        .def("__iter__", [](std::vector<std::string> &v) {
+               return py::make_iterator(v.begin(), v.end());
+        }, py::keep_alive<0, 1>());
     
     // Class that represents agc archive
     py::class_<CAGCFile>(m, "CAGCFile")
@@ -33,6 +40,11 @@ PYBIND11_MODULE(py_agc_api, m) {
         //NSample()
         //@returns  number of samples in the archive
         .def("NSample", &CAGCFile::NSample)
+    
+        //GetReferenceSample()
+        //@returns reference sample
+        .def("GetReferenceSample", [](CAGCFile& ptr){ std::string s;  ptr.GetReferenceSample(s); return s;})
+             
     
         //NCtg(sample)
         //@returns  number of contig in sample
@@ -62,14 +74,14 @@ PYBIND11_MODULE(py_agc_api, m) {
         //@param start    start offset
         //@param end      end offset
         //@return contig sequence
-        .def("GetCtgSeq", [](CAGCFile& ptr, const std::string& sample, const std::string& name, int start, int end) { std::string s; s.resize(end-start+1);  ptr.GetCtgSeq(sample, name, start, end, s); return s;})
+        .def("GetCtgSeq", [](CAGCFile& ptr, const std::string& sample, const std::string& name, int start, int end) { std::string s;  ptr.GetCtgSeq(sample, name, start, end, s); return s;})
     
         //GetCtgSeq(name, start, end)
         //@param name     contig name
         //@param start    start offset
         //@param end      end offset
         //@return contig sequence (if unique name across all contigs in all samples)
-        .def("GetCtgSeq", [](CAGCFile& ptr, const std::string& name, int start, int end) { std::string s; s.resize(end-start+1); std::string empty; ptr.GetCtgSeq(empty, name, start, end, s); return s;})
+        .def("GetCtgSeq", [](CAGCFile& ptr, const std::string& name, int start, int end) { std::string s; std::string empty; ptr.GetCtgSeq(empty, name, start, end, s); return s;})
     ;
 		
 }

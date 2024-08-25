@@ -2,10 +2,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.0
-// Date   : 2022-04-05
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
 #include "../core/agc_decompressor.h"
@@ -23,6 +23,116 @@ CAGCDecompressor::CAGCDecompressor(bool _is_app_mode) : CAGCDecompressorLibrary(
 // *******************************************************************************************
 CAGCDecompressor::~CAGCDecompressor()
 {
+}
+
+// *******************************************************************************************
+void CAGCDecompressor::convert_and_split_into_lines(contig_t& ctg, contig_t& working_space, uint32_t line_len)
+{
+	if (ctg.empty())
+		return;
+
+	size_t dest_size = ctg.size() + (ctg.size() + line_len - 1) / line_len;
+	working_space.resize(dest_size);
+
+	auto p = ctg.data();
+	auto q = working_space.data();
+
+	size_t to_save = ctg.size();
+
+	for (; to_save > line_len; to_save -= line_len)
+	{
+		uint32_t i;
+
+		switch (i = line_len % 8)
+		{
+		case 7:	*q++ = cnv_num[*p++]; [[fallthrough]];
+		case 6:	*q++ = cnv_num[*p++]; [[fallthrough]];
+		case 5:	*q++ = cnv_num[*p++]; [[fallthrough]];
+		case 4:	*q++ = cnv_num[*p++]; [[fallthrough]];
+		case 3:	*q++ = cnv_num[*p++]; [[fallthrough]];
+		case 2:	*q++ = cnv_num[*p++]; [[fallthrough]];
+		case 1:	*q++ = cnv_num[*p++];
+		}
+
+		for (; i < line_len; i += 8)
+		{
+			*q++ = cnv_num[*p++];
+			*q++ = cnv_num[*p++];
+			*q++ = cnv_num[*p++];
+			*q++ = cnv_num[*p++];
+			*q++ = cnv_num[*p++];
+			*q++ = cnv_num[*p++];
+			*q++ = cnv_num[*p++];
+			*q++ = cnv_num[*p++];
+		}
+
+		*q++ = '\n';
+	}
+
+	if (to_save)
+	{
+		while (to_save--)
+			*q++ = cnv_num[*p++];
+		*q++ = '\n';
+	}
+
+	assert(q == working_space.data() + working_space.size());
+
+	std::swap(ctg, working_space);
+}
+
+// *******************************************************************************************
+void CAGCDecompressor::gzip_contig(contig_t& ctg, contig_t& working_space, refresh::gz_in_memory& gzip_compressor)
+{
+	auto overhead = gzip_compressor.get_overhead(ctg.size());
+	working_space.resize(ctg.size() + overhead);
+
+	auto gzipped_size = gzip_compressor.compress(ctg.data(), ctg.size(), working_space.data(), working_space.size());
+	working_space.resize(gzipped_size);
+
+	swap(ctg, working_space);
+}
+ 
+// *******************************************************************************************
+void CAGCDecompressor::start_decompressing_threads(vector<thread>& v_threads, const uint32_t n_t, uint32_t gzip_level, uint32_t line_len)
+{
+	for (uint32_t i = 0; i < n_t; ++i)
+		v_threads.emplace_back([&, i, gzip_level, line_len] {
+
+		auto zstd_ctx = ZSTD_createDCtx();
+
+		contig_t ctg, working_space;
+		contig_task_t contig_desc;
+		refresh::gz_in_memory gzip_compressor(gzip_level);
+
+		while (!q_contig_tasks->IsCompleted())
+		{
+			if (!q_contig_tasks->Pop(contig_desc))
+				break;
+
+			size_t priority = contig_desc.priority;
+
+			if (!decompress_contig(contig_desc, zstd_ctx, ctg))
+				continue;
+
+			if(line_len == 0)
+				convert_to_alpha(ctg);
+			else
+				convert_and_split_into_lines(ctg, working_space, line_len);
+
+			if (gzip_level)
+				gzip_contig(ctg, working_space, gzip_compressor);
+
+			name_range_t contig_name_range = contig_desc.name_range;
+
+			pq_contigs_to_save->Emplace(priority, sample_contig_data_t{ contig_desc.sample_name, contig_name_range.str(), move(ctg) });
+			ctg.clear();
+		}
+
+		pq_contigs_to_save->MarkCompleted();
+
+		ZSTD_freeDCtx(zstd_ctx);
+		});
 }
 
 // *******************************************************************************************
@@ -53,14 +163,13 @@ bool CAGCDecompressor::AssignArchive(const CAGCBasic& agc_basic)
 }
 
 // *******************************************************************************************
-bool CAGCDecompressor::GetCollectionFiles(const string& _path, const uint32_t _line_length, const uint32_t no_threads)
+bool CAGCDecompressor::GetCollectionFiles(const string& _path, const uint32_t _line_length, const uint32_t no_threads, const uint32_t gzip_level, uint32_t verbosity)
 {
 	if (working_mode != working_mode_t::decompression)
 		return false;
 
 	vector<string> v_samples;
 	vector<sample_desc_t> v_sample_desc;
-	vector<string> v_sample_name_for_contig;
 
 	path p(_path);
 
@@ -70,68 +179,65 @@ bool CAGCDecompressor::GetCollectionFiles(const string& _path, const uint32_t _l
 		return false;
 	}
 
-	collection_desc.get_samples_list(v_samples);
+	collection_desc->get_samples_list(v_samples);
 
-	for (const auto& s : v_samples)
-	{
-		sample_desc_t sample_desc;
-		if (!collection_desc.get_sample_desc(s, sample_desc))
-		{
-			cerr << "There is no sample " << s << endl;
+	q_contig_tasks = make_unique<CBoundedQueue<contig_task_t>>(1, 1);
+	pq_contigs_to_save = make_unique<CPriorityQueue<sample_contig_data_t>>(no_threads);
 
-			return false;
-		}
-
-		v_sample_desc.emplace_back(sample_desc);
-
-		for(size_t i = 0; i < sample_desc.size(); ++i)
-			v_sample_name_for_contig.emplace_back(s);
-	}
-
-	q_contig_tasks = make_unique<CBoundedQueue<tuple<size_t, name_range_t, vector<segment_desc_t>>>>(1, 1);
-	pq_contigs_to_save = make_unique<CPriorityQueue<pair<string, contig_t>>>(no_threads);
-
-	vector<tuple<size_t, name_range_t, vector<segment_desc_t>>> v_tasks;
+	vector<contig_task_t> v_tasks;
 	vector<thread> v_threads;
 
 	// Saving thread
 	thread gio_thread([&] {
 		CGenomeIO gio;
-		pair<string, contig_t> ctg;
+		sample_contig_data_t ctg;
 		uint32_t global_id = 0;
 		string prev_sample_name;
 		bool is_gio_opened = false;
+
+		string eol = "";
 
 		while (!pq_contigs_to_save->IsCompleted())
 		{
 			if (!pq_contigs_to_save->Pop(ctg))
 				break;
 
-			if (v_sample_name_for_contig[global_id] != prev_sample_name)
+			if (ctg.sample_name != prev_sample_name)
 			{
 				if (is_gio_opened)
 					gio.Close();
 
-				prev_sample_name = v_sample_name_for_contig[global_id];
+				prev_sample_name = ctg.sample_name;
 				path cur_path = _path;
-				cur_path.append(prev_sample_name + ".fa");
+				cur_path.append(prev_sample_name + ".fa" + (gzip_level ? ".gz" : ""));
+//				cur_path.append(prev_sample_name + (gzip_level ? ".gz" : ""));
 
 				if (_path.empty())
 					gio.Open("", true);
 				else
+				{
 					gio.Open(cur_path.string(), true);
+					if (verbosity > 0)
+					{
+						cerr << eol << cur_path.string();
+						eol = "\n";
+					}
+				}
 
 				is_gio_opened = true;
 			}
 
 			++global_id;
 
-			gio.SaveContig(ctg.first, ctg.second, _line_length);
+			gio.SaveContigDirectly(ctg.contig_name, ctg.contig_data, gzip_level);
 		}
 
 		if (is_gio_opened)
+		{
 			gio.Close();
-
+			if (verbosity > 0)
+				cerr << endl;
+		}
 		});
 
 	v_threads.clear();
@@ -141,22 +247,34 @@ bool CAGCDecompressor::GetCollectionFiles(const string& _path, const uint32_t _l
 	uint32_t prev_no_contigs = no_threads;
 
 	q_contig_tasks->Restart(1);
-	
-	start_decompressing_threads(v_threads, no_threads, true);
 
-	for (auto& sample_desc : v_sample_desc)
+	start_decompressing_threads(v_threads, no_threads, gzip_level, _line_length);
+
+	sample_desc_t sample_desc;
+
+	bool res = true;
+
+	for (const auto& s : v_samples)
 	{
+		if (!collection_desc->get_sample_desc(s, sample_desc))
+		{
+			cerr << "There is no sample " << s << endl;
+
+			res = false;
+			break;
+		}
+
 		v_tasks.clear();
 		v_tasks.shrink_to_fit();
 		v_tasks.reserve(sample_desc.size());
 
 		for (uint32_t i = 0; i < sample_desc.size(); ++i, ++global_i)
-			v_tasks.emplace_back(global_i, sample_desc[i].first, sample_desc[i].second);
+			v_tasks.emplace_back(global_i, s, sample_desc[i].first, sample_desc[i].second);
 
-		sort(v_tasks.begin(), v_tasks.end(), [](auto& x, auto& y) {return get<2>(x).size() > get<2>(y).size(); });
+		sort(v_tasks.begin(), v_tasks.end(), [](auto& x, auto& y) {return x.segments.size() > y.segments.size(); });
 
-		while (pq_contigs_to_save->GetSize() > prev_no_contigs || q_contig_tasks->GetSize().first > no_threads)
-			this_thread::sleep_for(std::chrono::microseconds(50));
+		while (pq_contigs_to_save->GetSize() > 3 * prev_no_contigs || q_contig_tasks->GetSize().first > 3 * no_threads)
+			this_thread::sleep_for(std::chrono::microseconds(25));
 
 		prev_no_contigs = sample_desc.size();
 
@@ -173,11 +291,11 @@ bool CAGCDecompressor::GetCollectionFiles(const string& _path, const uint32_t _l
 	q_contig_tasks.release();
 	pq_contigs_to_save.release();
 
-	return true;
+	return res;
 }
 
 // *******************************************************************************************
-bool CAGCDecompressor::GetSampleFile(const string& _file_name, const vector<string>& sample_names, const uint32_t _line_length, const uint32_t no_threads)
+bool CAGCDecompressor::GetSampleFile(const string& _file_name, const vector<string>& sample_names, const uint32_t _line_length, const uint32_t no_threads, const uint32_t gzip_level, uint32_t verbosity)
 {
 	if (working_mode != working_mode_t::decompression)
 		return false;
@@ -187,7 +305,8 @@ bool CAGCDecompressor::GetSampleFile(const string& _file_name, const vector<stri
 	for (const auto &s : sample_names)
 	{
 		sample_desc_t sample_desc;
-		if (!collection_desc.get_sample_desc(s, sample_desc))
+
+		if (!collection_desc->get_sample_desc(s, sample_desc))
 		{
 			cerr << "There is no sample " << s << endl;
 
@@ -197,16 +316,18 @@ bool CAGCDecompressor::GetSampleFile(const string& _file_name, const vector<stri
 		v_sample_desc.emplace_back(sample_desc);
 	}
 
-	q_contig_tasks = make_unique<CBoundedQueue<tuple<size_t, name_range_t, vector<segment_desc_t>>>>(1, 1);
-	pq_contigs_to_save = make_unique<CPriorityQueue<pair<string, contig_t>>>(no_threads * v_sample_desc.size());
+	q_contig_tasks = make_unique<CBoundedQueue<contig_task_t>>(1, 1);
+	pq_contigs_to_save = make_unique<CPriorityQueue<sample_contig_data_t>>(no_threads * v_sample_desc.size());
 
-	vector<tuple<size_t, name_range_t, vector<segment_desc_t>>> v_tasks;
+	vector<contig_task_t> v_tasks;
 	vector<thread> v_threads;
+
+	string eol = "";
 
 	// Saving thread
 	thread gio_thread([&] {
 		CGenomeIO gio;
-		pair<string, contig_t> ctg;
+		sample_contig_data_t ctg;
 
 		gio.Open(_file_name, true);
 
@@ -215,7 +336,13 @@ bool CAGCDecompressor::GetSampleFile(const string& _file_name, const vector<stri
 			if (!pq_contigs_to_save->Pop(ctg))
 				break;
 
-			gio.SaveContig(ctg.first, ctg.second, _line_length);
+			gio.SaveContigDirectly(ctg.contig_name, ctg.contig_data, gzip_level);
+
+			if (!_file_name.empty() && verbosity > 0)
+			{
+				cerr << eol << ctg.contig_name;
+				eol = "\n";
+			}
 		}
 
 		gio.Close();
@@ -233,13 +360,13 @@ bool CAGCDecompressor::GetSampleFile(const string& _file_name, const vector<stri
 		v_tasks.reserve(sample_desc.size());
 
 		for (uint32_t i = 0; i < sample_desc.size(); ++i, ++global_i)
-			v_tasks.emplace_back(global_i, sample_desc[i].first, sample_desc[i].second);
+			v_tasks.emplace_back(global_i, "", sample_desc[i].first, sample_desc[i].second);
 
-		sort(v_tasks.begin(), v_tasks.end(), [](auto& x, auto& y) {return get<2>(x).size() > get<2>(y).size(); });
+		sort(v_tasks.begin(), v_tasks.end(), [](auto& x, auto& y) {return x.segments.size() > y.segments.size(); });
 
 		q_contig_tasks->Restart(1);
 
-		start_decompressing_threads(v_threads, no_threads, true);
+		start_decompressing_threads(v_threads, no_threads, gzip_level, _line_length);
 
 		for (auto& task : v_tasks)
 			q_contig_tasks->Push(task, 0);
@@ -251,6 +378,9 @@ bool CAGCDecompressor::GetSampleFile(const string& _file_name, const vector<stri
 	}
 
 	gio_thread.join();
+
+	if (!_file_name.empty() && verbosity > 0)
+		cerr << eol;
 
 	q_contig_tasks.release();
 	pq_contigs_to_save.release();
@@ -266,17 +396,17 @@ bool CAGCDecompressor::GetSampleSequences(const string& sample_name, vector<pair
 
 	sample_desc_t sample_desc;
 
-	if (!collection_desc.get_sample_desc(sample_name, sample_desc))
+	if (!collection_desc->get_sample_desc(sample_name, sample_desc))
 	{
 		cerr << "There is no sample " << sample_name << endl;
 
 		return false;
 	}
 
-	q_contig_tasks = make_unique<CBoundedQueue<tuple<size_t, name_range_t, vector<segment_desc_t>>>>(1, 1);
-	pq_contigs_to_save = make_unique<CPriorityQueue<pair<string, contig_t>>>(no_threads);
+	q_contig_tasks = make_unique<CBoundedQueue<contig_task_t>>(1, 1);
+	pq_contigs_to_save = make_unique<CPriorityQueue<sample_contig_data_t>>(no_threads);
 
-	vector<tuple<size_t, name_range_t, vector<segment_desc_t>>> v_tasks;
+	vector<contig_task_t> v_tasks;
 	vector<thread> v_threads;
 
 	v_contig_seq.reserve(sample_desc.size());
@@ -284,14 +414,14 @@ bool CAGCDecompressor::GetSampleSequences(const string& sample_name, vector<pair
 	// Saving thread
 	thread gio_thread([&] {
 		CGenomeIO gio;
-		pair<string, contig_t> ctg;
+		sample_contig_data_t ctg;
 
 		while (!pq_contigs_to_save->IsCompleted())
 		{
 			if (!pq_contigs_to_save->Pop(ctg))
 				break;
 
-			v_contig_seq.emplace_back(ctg.first, ctg.second);
+			v_contig_seq.emplace_back(ctg.contig_name, ctg.contig_data);
 		}
 
 		gio.Close();
@@ -307,13 +437,13 @@ bool CAGCDecompressor::GetSampleSequences(const string& sample_name, vector<pair
 	v_tasks.reserve(sample_desc.size());
 
 	for (uint32_t i = 0; i < sample_desc.size(); ++i, ++global_i)
-		v_tasks.emplace_back(global_i, sample_desc[i].first, sample_desc[i].second);
+		v_tasks.emplace_back(global_i, "", sample_desc[i].first, sample_desc[i].second);
 
-	sort(v_tasks.begin(), v_tasks.end(), [](auto& x, auto& y) {return get<2>(x).size() > get<2>(y).size(); });
+	sort(v_tasks.begin(), v_tasks.end(), [](auto& x, auto& y) {return x.segments.size() > y.segments.size(); });
 
 	q_contig_tasks->Restart(1);
 
-	start_decompressing_threads(v_threads, no_threads, true);
+	start_decompressing_threads(v_threads, no_threads);
 
 	for (auto& task : v_tasks)
 		q_contig_tasks->Push(task, 0);
@@ -332,7 +462,7 @@ bool CAGCDecompressor::GetSampleSequences(const string& sample_name, vector<pair
 }
 
 // *******************************************************************************************
-bool CAGCDecompressor::GetContigFile(const string& _file_name, const vector<string>& contig_names, const uint32_t _line_length, const uint32_t no_threads)
+bool CAGCDecompressor::GetContigFile(const string& _file_name, const vector<string>& contig_names, const uint32_t _line_length, const uint32_t no_threads, const uint32_t gzip_level, uint32_t verbosity)
 {
 	if (working_mode != working_mode_t::decompression)
 		return false;
@@ -351,7 +481,7 @@ bool CAGCDecompressor::GetContigFile(const string& _file_name, const vector<stri
 
 		if (!sample.empty())
 		{
-			if (!collection_desc.is_contig_desc(sample, name_range.name))
+			if (!collection_desc->is_contig_desc(sample, name_range.name))
 			{
 				cerr << "There is no sample:contig pair: " << sample << " : " << name_range.name << endl;
 				return false;
@@ -361,7 +491,7 @@ bool CAGCDecompressor::GetContigFile(const string& _file_name, const vector<stri
 		}
 		else
 		{
-			auto v_cand_samples = collection_desc.get_samples_for_contig(name_range.name);
+			auto v_cand_samples = collection_desc->get_samples_for_contig(name_range.name);
 			if (v_cand_samples.size() == 0)
 			{
 				cerr << "There is no contig: " << name_range.name << endl;
@@ -377,13 +507,13 @@ bool CAGCDecompressor::GetContigFile(const string& _file_name, const vector<stri
 		}
 	}
 
-	q_contig_tasks = make_unique<CBoundedQueue<tuple<size_t, name_range_t, vector<segment_desc_t>>>>(1, 1);
-	pq_contigs_to_save = make_unique<CPriorityQueue<pair<string, contig_t>>>(no_threads);
+	q_contig_tasks = make_unique<CBoundedQueue<contig_task_t>>(1, 1);
+	pq_contigs_to_save = make_unique<CPriorityQueue<sample_contig_data_t>>(no_threads);
 
 	// Saving thread
 	thread gio_thread([&] {
 		CGenomeIO gio;
-		pair<string, contig_t> ctg;
+		sample_contig_data_t ctg;
 
 		gio.Open(_file_name, true);
 
@@ -391,7 +521,7 @@ bool CAGCDecompressor::GetContigFile(const string& _file_name, const vector<stri
 		{
 			if (!pq_contigs_to_save->Pop(ctg))
 				break;
-			gio.SaveContig(ctg.first, ctg.second, _line_length);
+			gio.SaveContigDirectly(ctg.contig_name, ctg.contig_data, gzip_level);
 		}
 
 		gio.Close();
@@ -400,16 +530,16 @@ bool CAGCDecompressor::GetContigFile(const string& _file_name, const vector<stri
 	vector<thread> v_threads;
 	v_threads.reserve(no_threads);
 
-	start_decompressing_threads(v_threads, no_threads, true);
+	start_decompressing_threads(v_threads, no_threads, gzip_level, _line_length);
 
 	uint32_t id = 0;
 	vector<segment_desc_t> contig_desc;
 
 	for (auto& p_sc : v_sample_contig)
 	{
-		collection_desc.get_contig_desc(p_sc.first, p_sc.second.name, contig_desc);
+		collection_desc->get_contig_desc(p_sc.first, p_sc.second.name, contig_desc);
 
-		tuple<size_t, name_range_t, vector<segment_desc_t>> task(id++, p_sc.second, contig_desc);
+		contig_task_t task(id++, "", p_sc.second, contig_desc);
 		q_contig_tasks->Push(task, 0);
 	}
 

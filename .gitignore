@@ -1,2 +1,3 @@
-﻿libagc.so
-*.o
+﻿/agc
+/bin/obj/libzstd_x64_Release
+/bin/x64_Release

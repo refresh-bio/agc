@@ -39,7 +39,7 @@ ifeq ($(uname_S),Darwin)
 	LIB_ZLIB=cloudflare-zlib/libz.mac.a
 	LIB_RADULS=libraduls.mac.a
 	AR_OPT=-rcs
-	CC = g++-11
+	CC = g++-10
 	CLINK +=  -static-libgcc
 	PY_AGC_API_CFLAGS = -Wl,-undefined,dynamic_lookup -fPIC -Wall -shared -std=c++14 -O3
 endif
@@ -62,9 +62,13 @@ agc: $(AGC_APP_DIR)/main.o \
 	$(AGC_APP_DIR)/application.o \
 	$(AGC_CORE_DIR)/archive.o \
 	$(AGC_CORE_DIR)/collection.o \
+	$(AGC_CORE_DIR)/collection_v1.o \
+	$(AGC_CORE_DIR)/collection_v2.o \
+	$(AGC_CORE_DIR)/collection_v3.o \
 	$(AGC_CORE_DIR)/genome_io.o \
 	$(AGC_CORE_DIR)/lz_diff.o \
-	$(AGC_CORE_DIR)/segment.o
+	$(AGC_CORE_DIR)/segment.o \
+	$(AGC_CORE_DIR)/utils.o
 	$(CC) -o $(AGC_ROOT_DIR)/$@  \
 	$(AGC_APP_DIR)/main.o \
 	$(AGC_CORE_DIR)/agc_basic.o \
@@ -74,9 +78,13 @@ agc: $(AGC_APP_DIR)/main.o \
 	$(AGC_APP_DIR)/application.o \
 	$(AGC_CORE_DIR)/archive.o \
 	$(AGC_CORE_DIR)/collection.o \
+	$(AGC_CORE_DIR)/collection_v1.o \
+	$(AGC_CORE_DIR)/collection_v2.o \
+	$(AGC_CORE_DIR)/collection_v3.o \
 	$(AGC_CORE_DIR)/genome_io.o \
 	$(AGC_CORE_DIR)/lz_diff.o \
 	$(AGC_CORE_DIR)/segment.o \
+	$(AGC_CORE_DIR)/utils.o \
 	$(AGC_LIBS_DIR)/$(LIB_ZSTD) \
 	$(AGC_LIBS_DIR)/$(LIB_ZLIB) \
 	$(AGC_LIBS_DIR)/$(LIB_RADULS) \
@@ -88,18 +96,26 @@ libagc: $(AGC_CXX_DIR)/lib-cxx.o \
 	$(AGC_CORE_DIR)/agc_decompressor_lib.o \
 	$(AGC_CORE_DIR)/archive.o \
 	$(AGC_CORE_DIR)/collection.o \
+	$(AGC_CORE_DIR)/collection_v1.o \
+	$(AGC_CORE_DIR)/collection_v2.o \
+	$(AGC_CORE_DIR)/collection_v3.o \
 	$(AGC_CORE_DIR)/genome_io.o \
 	$(AGC_CORE_DIR)/lz_diff.o \
-	$(AGC_CORE_DIR)/segment.o
+	$(AGC_CORE_DIR)/segment.o \
+	$(AGC_CORE_DIR)/utils.o
 	$(AR) $(AR_OPT)  $(AGC_ROOT_DIR)/$@.a  \
 	$(AGC_CXX_DIR)/lib-cxx.o \
 	$(AGC_CORE_DIR)/agc_basic.o \
 	$(AGC_CORE_DIR)/agc_decompressor_lib.o \
 	$(AGC_CORE_DIR)/archive.o \
 	$(AGC_CORE_DIR)/collection.o \
+	$(AGC_CORE_DIR)/collection_v1.o \
+	$(AGC_CORE_DIR)/collection_v2.o \
+	$(AGC_CORE_DIR)/collection_v3.o \
 	$(AGC_CORE_DIR)/genome_io.o \
 	$(AGC_CORE_DIR)/lz_diff.o \
-	$(AGC_CORE_DIR)/segment.o 
+	$(AGC_CORE_DIR)/segment.o \
+	$(AGC_CORE_DIR)/utils.o 
 
 .PHONY:py_agc_api
 py_agc_api: $(PY_AGC_API_DIR)/py_agc_api.cpp $(AGC_CXX_DIR)/lib-cxx.o \
@@ -107,8 +123,12 @@ py_agc_api: $(PY_AGC_API_DIR)/py_agc_api.cpp $(AGC_CXX_DIR)/lib-cxx.o \
 	$(AGC_CORE_DIR)/agc_decompressor_lib.o \
 	$(AGC_CORE_DIR)/archive.o \
 	$(AGC_CORE_DIR)/collection.o \
+	$(AGC_CORE_DIR)/collection_v1.o \
+	$(AGC_CORE_DIR)/collection_v2.o \
+	$(AGC_CORE_DIR)/collection_v3.o \
 	$(AGC_CORE_DIR)/lz_diff.o \
-	$(AGC_CORE_DIR)/segment.o
+	$(AGC_CORE_DIR)/segment.o \
+	$(AGC_CORE_DIR)/utils.o
 	$(CC) $(PY_CFLAGS)  \
 	$(PY_AGC_API_DIR)/py_agc_api.cpp \
 	$(AGC_CXX_DIR)/lib-cxx.o \
@@ -116,8 +136,12 @@ py_agc_api: $(PY_AGC_API_DIR)/py_agc_api.cpp $(AGC_CXX_DIR)/lib-cxx.o \
 	$(AGC_CORE_DIR)/agc_decompressor_lib.o \
 	$(AGC_CORE_DIR)/archive.o \
 	$(AGC_CORE_DIR)/collection.o \
+	$(AGC_CORE_DIR)/collection_v1.o \
+	$(AGC_CORE_DIR)/collection_v2.o \
+	$(AGC_CORE_DIR)/collection_v3.o \
 	$(AGC_CORE_DIR)/lz_diff.o \
 	$(AGC_CORE_DIR)/segment.o \
+	$(AGC_CORE_DIR)/utils.o \
 	$(AGC_LIBS_DIR)/$(LIB_ZSTD) \
 	-I $(AGC_MAIN_DIR) \
 	-I $(PYBIND11_LIB)/include \

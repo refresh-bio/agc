@@ -2,14 +2,15 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.0
-// Date   : 2022-04-05
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
 #include "application.h"
 #include <algorithm>
+#include <unordered_set>
 #include <fstream>
 #include <iterator>
 #include "../core/utils.h"
@@ -34,10 +35,12 @@ bool CApplication::parse_params(const int argc, const char** argv)
             usage_append();
         else if (execution_params.mode == "getcol")
             usage_getcol();
-        else if (execution_params.mode == "getset")
+        else if (execution_params.mode == "getset")	
             usage_getset();
         else if (execution_params.mode == "getctg")
             usage_getctg();
+        else if (execution_params.mode == "listref")
+            usage_listref();
         else if (execution_params.mode == "listset")
             usage_listset();
         else if (execution_params.mode == "listctg")
@@ -62,6 +65,8 @@ bool CApplication::parse_params(const int argc, const char** argv)
             return parse_params_getset(argc - 1, argv + 1);
         else if (execution_params.mode == "getctg")
             return parse_params_getctg(argc - 1, argv + 1);
+        else if (execution_params.mode == "listref")
+            return parse_params_listref(argc - 1, argv + 1);
         else if (execution_params.mode == "listset")
             return parse_params_listset(argc - 1, argv + 1);
         else if (execution_params.mode == "listctg")
@@ -89,6 +94,7 @@ void CApplication::usage() const
     cerr << "   getcol   - extract all samples from archive\n";
     cerr << "   getset   - extract sample from archive\n";
     cerr << "   getctg   - extract contig from archive\n";
+    cerr << "   listref  - list reference sample name in archive\n";
     cerr << "   listset  - list sample names in archive\n";
     cerr << "   listctg  - list sample and contig names in archive\n";
     cerr << "   info     - show some statistics of the compressed data\n";
@@ -101,11 +107,10 @@ void CApplication::usage_create() const
 	cerr << AGC_VERSION << endl;
 	cerr << "Usage: agc create [options] <ref.fa> [<in1.fa> ...] > <out.agc>\n";
     cerr << "Options:\n";
-	cerr << "   -a             - adaptive mode (default: " << bool2string(execution_params.adaptive_compression) << ")\n";
+	cerr << "   -a             - adaptive mode (default: " << boolalpha << execution_params.adaptive_compression << noboolalpha << ")\n";
 	cerr << "   -b <int>       - batch size " << execution_params.pack_cardinality.info() << "\n";
-    cerr << "   -c             - concatenated genomes in a single file (default: " << bool2string(execution_params.concatenated_genomes) << ")\n";
-    cerr << "   -d             - do not store cmd-line (default: " << bool2string(execution_params.store_cmd_line) << ")\n";
-//	cerr << "   -f             - use fast mode (default: " << bool2string(!execution_params.reproducibility_mode) << ")\n";
+    cerr << "   -c             - concatenated genomes in a single file (default: " << boolalpha << execution_params.concatenated_genomes << noboolalpha << ")\n";
+    cerr << "   -d             - do not store cmd-line (default: " << boolalpha << execution_params.store_cmd_line << noboolalpha << ")\n";
 	cerr << "   -i <file_name> - file with FASTA file names (alterantive to listing file names explicitely in command line)\n";
     cerr << "   -k <int>       - k-mer length" << execution_params.k.info() << "\n";
     cerr << "   -l <int>       - min. match length " << execution_params.min_match_length.info() << "\n";
@@ -136,8 +141,6 @@ bool CApplication::parse_params_create(const int argc, const char** argv)
 			execution_params.adaptive_compression = true;
 		} else if (c == 'c') {
 			execution_params.concatenated_genomes = true;
-		} else if (c == 'f') {
-//			execution_params.reproducibility_mode = false;
 		} else if (c == 'd') {
 			execution_params.store_cmd_line = false;
 		} else if (c == 'i') {
@@ -170,10 +173,9 @@ void CApplication::usage_append() const
 	cerr << AGC_VERSION << endl;
 	cerr << "Usage: agc append [options] <in.agc> [<in1.fa> ...] > <out.agc>\n";
     cerr << "Options:\n";
-	cerr << "   -a             - adaptive mode (default: " << bool2string(execution_params.adaptive_compression) << ")\n";
-	cerr << "   -c             - concatenated genomes in a single file (default: " << bool2string(execution_params.concatenated_genomes) << ")\n";
-    cerr << "   -d             - do not store cmd-line (default: " << bool2string(execution_params.store_cmd_line) << ")\n";
-//	cerr << "   -f             - use fast mode (default: " << bool2string(!execution_params.reproducibility_mode) << ")\n";
+	cerr << "   -a             - adaptive mode (default: " << boolalpha << execution_params.adaptive_compression << noboolalpha << ")\n";
+	cerr << "   -c             - concatenated genomes in a single file (default: " << boolalpha << execution_params.concatenated_genomes << noboolalpha << ")\n";
+    cerr << "   -d             - do not store cmd-line (default: " << boolalpha << execution_params.store_cmd_line << noboolalpha << ")\n";
 	cerr << "   -i <file_name> - file with FASTA file names (alterantive to listing file names explicitely in command line)\n";
     cerr << "   -o <file_name> - output to file (default: output is sent to stdout)\n";
 	cerr << "   -t <int>       - no of threads " << execution_params.no_threads.info() << "\n";
@@ -191,8 +193,6 @@ bool CApplication::parse_params_append(const int argc, const char** argv)
 			execution_params.no_threads.assign(atoi(o.arg));
 		} else if (c == 'c') {
 			execution_params.concatenated_genomes = true;
-		} else if (c == 'f') {
-//			execution_params.reproducibility_mode = false;
 		} else if (c == 'd') {
 			execution_params.store_cmd_line = false;
 		}
@@ -229,7 +229,8 @@ void CApplication::usage_getcol() const
 	cerr << AGC_VERSION << endl;
 	cerr << "Usage: agc getcol [options] <in.agc> > <out.fa>\n";
     cerr << "Options:\n";
-    cerr << "   -l <int>         - line length " << execution_params.line_length.info() << "\n";
+	cerr << "   -g <int>         - optional gzip with given level " << execution_params.gzip_level.info() << "\n";
+	cerr << "   -l <int>         - line length " << execution_params.line_length.info() << "\n";
     cerr << "   -o <output_path> - output to files at path (default: output is sent to stdout)\n";
     cerr << "   -t <int>         - no of threads " << execution_params.no_threads.info() << "\n";
     cerr << "   -v <int>         - verbosity level " << execution_params.verbosity.info() << "\n";
@@ -243,8 +244,11 @@ bool CApplication::parse_params_getcol(const int argc, const char** argv)
 
 	execution_params.prefetch = true;
 
-	while ((c = ketopt(&o, argc, argv, 1, "t:l:o:v:", 0)) >= 0) {
-		if (c == 't') {
+	while ((c = ketopt(&o, argc, argv, 1, "g:t:l:o:v:", 0)) >= 0) {
+		if (c == 'g') {
+			execution_params.gzip_level.assign(atoi(o.arg));
+		}
+		else if (c == 't') {
 			execution_params.no_threads.assign(atoi(o.arg));
 		}
 		else if (c == 'l') {
@@ -275,9 +279,11 @@ void CApplication::usage_getset() const
 	cerr << AGC_VERSION << endl;
 	cerr << "Usage: agc getset [options] <in.agc> <sample_name1> [<sample_name2> ...] > <out.fa>\n";
     cerr << "Options:\n";
-    cerr << "   -l <int>       - line length " << execution_params.line_length.info() << "\n";
-    cerr << "   -o <file_name> - output to file (default: output is sent to stdout)\n";
-    cerr << "   -t <int>       - no of threads " << execution_params.no_threads.info() << "\n";
+	cerr << "   -g <int>       - optional gzip with given level " << execution_params.gzip_level.info() << "\n";
+	cerr << "   -l <int>       - line length " << execution_params.line_length.info() << "\n";
+	cerr << "   -o <file_name> - output to file (default: output is sent to stdout)\n";
+	cerr << "   -p             - disable file prefetching (useful for small genomes)" << "\n";
+	cerr << "   -t <int>       - no of threads " << execution_params.no_threads.info() << "\n";
     cerr << "   -v <int>       - verbosity level " << execution_params.verbosity.info() << "\n";
 }
 
@@ -289,14 +295,20 @@ bool CApplication::parse_params_getset(const int argc, const char** argv)
 
 	execution_params.prefetch = true;
 
-	while ((c = ketopt(&o, argc, argv, 1, "t:l:o:v:", 0)) >= 0) {
-		if (c == 't') {
+	while ((c = ketopt(&o, argc, argv, 1, "g:t:l:o:pv:", 0)) >= 0) {
+		if (c == 'g') {
+			execution_params.gzip_level.assign(atoi(o.arg));
+		}
+		else if (c == 't') {
 			execution_params.no_threads.assign(atoi(o.arg));
 		} else if (c == 'l') {
 			execution_params.line_length.assign(atoi(o.arg));
 		} else if (c == 'o') {
 			execution_params.output_name = o.arg;
 			execution_params.use_stdout = false;
+		}
+		else if (c == 'p') {
+			execution_params.prefetch = false;
 		} else if (c == 'v') {
 			execution_params.verbosity.assign(atoi(o.arg));
 		}
@@ -329,10 +341,11 @@ void CApplication::usage_getctg() const
     cerr << "       agc getctg [options] <in.agc> <contig1:from-to>[<contig2:from-to> ...] > <out.fa>\n";
     cerr << "       agc getctg [options] <in.agc> <contig1@sample1:from-to> [<contig2@sample2:from-to> ...] > <out.fa>\n";
     cerr << "Options:\n";
-    cerr << "   -l <int>       - line length " << execution_params.line_length.info() << "\n";
+	cerr << "   -g <int>       - optional gzip with given level " << execution_params.gzip_level.info() << "\n";
+	cerr << "   -l <int>       - line length " << execution_params.line_length.info() << "\n";
     cerr << "   -o <file_name> - output to file (default: output is sent to stdout)\n";
-    cerr << "   -t <int>       - no of threads " << execution_params.no_threads.info() << "\n";
-    cerr << "   -p             - disable file prefetching (useful for short queries)" << "\n";
+	cerr << "   -p             - disable file prefetching (useful for short queries)" << "\n";
+	cerr << "   -t <int>       - no of threads " << execution_params.no_threads.info() << "\n";
     cerr << "   -v <int>       - verbosity level " << execution_params.verbosity.info() << "\n";
 }
 
@@ -344,8 +357,11 @@ bool CApplication::parse_params_getctg(const int argc, const char** argv)
 
 	execution_params.prefetch = true;
 
-	while ((c = ketopt(&o, argc, argv, 1, "t:l:o:pv:", 0)) >= 0) {
-		if (c == 't') {
+	while ((c = ketopt(&o, argc, argv, 1, "g:t:l:o:pv:", 0)) >= 0) {
+		if (c == 'g') {
+			execution_params.gzip_level.assign(atoi(o.arg));
+		}
+		else if (c == 't') {
 			execution_params.no_threads.assign(atoi(o.arg));
 		} else if (c == 'l') {
 			execution_params.line_length.assign(atoi(o.arg));
@@ -373,6 +389,40 @@ bool CApplication::parse_params_getctg(const int argc, const char** argv)
 
 	for (i = o.ind + 1; i < argc; ++i)
 		execution_params.contig_names.emplace_back(argv[i]);
+
+	return true;
+}
+
+// *******************************************************************************************
+void CApplication::usage_listref() const
+{
+	cerr << AGC_VERSION << endl;
+	cerr << "Usage: agc listref [options] <in.agc> > <out.txt>\n";
+	cerr << "Options:\n";
+	cerr << "   -o <file_name> - output to file (default: output is sent to stdout)\n";
+}
+
+// *******************************************************************************************
+bool CApplication::parse_params_listref(const int argc, const char** argv)
+{
+	ketopt_t o = KETOPT_INIT;
+	int c;
+
+	execution_params.prefetch = false;
+
+	while ((c = ketopt(&o, argc, argv, 1, "o:", 0)) >= 0) {
+		if (c == 'o') {
+			execution_params.output_name = o.arg;
+			execution_params.use_stdout = false;
+		}
+	}
+
+	if (o.ind >= argc) {
+		cerr << "No archive name\n";
+		return false;
+	}
+
+	execution_params.in_archive_name = argv[o.ind];
 
 	return true;
 }
@@ -494,7 +544,7 @@ bool CApplication::parse_params_info(const int argc, const char** argv)
 // *******************************************************************************************
 bool CApplication::load_file_names(const string &fn, vector<string>& v_file_names)
 {
-    fstream inf(fn);
+    fstream inf(fn, ios::in);
 
     if (!inf.is_open())
     {
@@ -508,9 +558,51 @@ bool CApplication::load_file_names(const string &fn, vector<string>& v_file_name
 }
 
 // *******************************************************************************************
-string CApplication::bool2string(bool x) const
+// Remove duplicates in file name list
+void CApplication::sanitize_input_file_names(vector<string>& v_file_names)
 {
-    return x ? "true"s : "false"s;
+	vector<string> v_tmp;
+
+	v_tmp.swap(v_file_names);
+	unordered_set<string, MurMurStringsHash> s_tmp;
+
+	v_file_names.reserve(v_tmp.size());
+	s_tmp.reserve(v_tmp.size());
+
+	for (auto& s : v_tmp)
+		if(!s_tmp.count(s))
+		{
+			v_file_names.emplace_back(s);
+			s_tmp.emplace(s);
+		}
 }
+
+// *******************************************************************************************
+void CApplication::remove_common_suffixes(string& sample_name)
+{
+	vector<string> suf_to_remove = { ".fna", ".gz", ".fa", ".fasta" };
+
+	while (true)
+	{
+		bool was_removed = false;
+
+		for (auto& suf : suf_to_remove)
+		{
+			if (sample_name.length() <= suf.length())
+				continue;
+
+			if (sample_name.substr(sample_name.length() - suf.length(), string::npos) == suf)
+			{
+				sample_name.resize(sample_name.length() - suf.length());
+				was_removed = true;
+				break;
+			}
+		}
+
+		if (!was_removed)
+			break;
+	}
+}
+
 
 // EOF

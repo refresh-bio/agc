@@ -16,8 +16,14 @@ On a AMD TR 3990X-based machine (32 threads used) it takes about 12 minutes to c
 ## Quick start
 
 ```bash
-git clone https://github.com/refresh-bio/agc
-cd agc && make
+git clone --recurse-submodules https://github.com/refresh-bio/agc
+cd agc
+
+# Linux compilation
+make
+
+# MacOS compilation: must specify g++ compiler
+make CXX=g++-11
 
 # Compress a collection of 3 genomes
 ./agc create ref.fa in1.fa in2.fa > col.agc                         # file names given in command-line
@@ -66,9 +72,31 @@ cd agc && make
 ## Installation and configuration
 agc should be downloaded from https://github.com/refresh-bio/agc and compiled. The supported OS are:
 * Windows: Visual Studio 2022 solution provided,
-* Linux: make project (G++ 9.0 or newer required),
-* MacOS: make project (G++ 9.0 or newer required).
+* Linux: make project (G++ 10.0 or newer required),
+* MacOS: make project (G++ 11.0 required).
 
+### Compilation options
+For better performance gzipped input is readed using [isa-l](https://github.com/intel/isa-l) library for x64 CPUs. 
+This, however, requires [NASM](https://github.com/netwide-assembler/nasm) compiler to be installed (you can install it from GitHub or are `nasm` package, e.g., `sudo apt install nasm`).
+If NASM is not present (or at ARM-based CPUs), the [zlib-ng](https://github.com/zlib-ng/zlib-ng) is used.
+
+Compilation with default options optimizes the tool for native platform. 
+If you want more control you can specify the platform:
+```
+make PLATFORM=arm8		# compilation for ARM-based machines (turns on `-march=armv8-a`)
+make PLATFORM=m1		# compilation for M1/M2/... (turns on `-march=armv8.4-a`)
+make PLATFORM=SSE2		# compilation for x64 CPUs with SSE2 support
+make PLATFORM=AVX		# compilation for x64 CPUs with AVX support
+make PLATFORM=AVX2		# compilation for x64 CPUs with AVX2 support
+```
+
+You can also specity the g++ compiler version (if installed):
+```
+make CXX=g++-11
+make CXX=g++-12
+```
+
+### Prebuild releases
 The release contains a set of [precompiled binaries](https://github.com/refresh-bio/agc/releases) for Windows, Linux, and OS X. 
 
 The software is also available on [Bioconda](https://anaconda.org/bioconda/agc):
@@ -79,15 +107,28 @@ For detailed instructions on how to set up Bioconda, please refer to the [Biocon
 
 
 ## Version history
-* 1.0 (23 Dec 2021)
-  * First public release.
-* 1.1 (14 Jan 2022)
+* 3.1 (18 Mar 2024)
+  * Improved compression speed for gzipped input.
+  * Support for ARM-based CPUs (e.g., Mac M1/M2/...).
+  * Reporting reference sample name.
+  * Fixed truncating .fa from gzipped input.
+  * Fixed Python lib GetCtgSeq().
+  * Added optional gzipping in decompression modes.
   * Small bugfixes.
+* 3.0 (22 Dec 2022)
+  * Improved compression (slightly better ratio).
+  * Improved archive format &mdash; much faster queries for archives containing large number of samples.
+  * Bugfixes.
+* 2.1 (9 May 2022)
+  * Bugfix in append mode. (In version 2.0, running append could produce improper archive.)
 * 2.0 (5 Apr 2022)
   * Optional adaptive mode (especially for bacterial data).
   * New mode: decompression of whole collection.
   * New archive format (a bit more compact): AGC 1.x tool cannot read AGC 2 archives, but AGC 2.x tool can operate on AGC 1.x and AGC 2.x archives.
-
+* 1.1 (14 Jan 2022)
+  * Small bugfixes.
+* 1.0 (23 Dec 2021)
+  * First public release.
 
 ## Usage
 
@@ -99,6 +140,7 @@ Command:
 * `getcol`   - extract all samples from archive
 * `getset`   - extract sample from archive
 * `getctg`   - extract contig from archive
+* `listref`  - list reference sample name in archive
 * `listset`  - list sample names in archive
 * `listctg`  - list sample and contig names in archive
 * `info`     - show some statistics of the compressed data
@@ -154,6 +196,7 @@ FASTA files can be optionally gzipped.
 `agc getcol [options] <in.agc> > <out.fa>`
 
 Options:\n";
+* `-g <int>`         - optional gzip with given level (default: 0; min: 0; max: 9)
 * `-l <int>`         - line length (default: 80; min: 40; max: 2000000000)
 * `-o <output_path>` - output to files at path (default: output is sent to stdout)
 * `-t <int>`         - no. of threads (default: no. logical cores / 2; min: 1; max: no. logical. cores)
@@ -162,19 +205,22 @@ Options:\n";
 #### Hints
 If output path is specified then it must be an existing directory.
 Each sample will be stored in a separate file (the files in the directory will be overwritten if their names are the same as sample name).
+Samples can be gzipped when `-g` flag is provided.
 
 ### Extract genomes from the archive
 
 `agc getset [options] <in.agc> <sample_name1> [<sample_name2> ...] > <out.fa>`
 
 Options:
+* `-g <int>`         - optional gzip with given level (default: 0; min: 0; max: 9)
 * `-l <int>`       - line length (default: 80; min: 40; max: 2000000000)
 * `-o <file_name>` - output to file (default: output is sent to stdout)
 * `-t <int>`       - no. of threads (default: no. logical cores / 2; min: 1; max: no. logical. cores)
+* `-p`             - disable file prefetching (useful for short genomes)
 * `-v <int>`       - verbosity level (default: 0; min: 0; max: 2)
   
 #### Hints
-If output file name ends with `.gz' the output file will be gzipped.
+Samples can be gzipped when `-g` flag is provided.
   
 ### Extract contigs from the archive
 
@@ -184,6 +230,7 @@ If output file name ends with `.gz' the output file will be gzipped.
 `agc getctg [options] <in.agc> <contig1@sample1:from1-to1> [<contig2@sample2:from2-to2> ...] > <out.fa>`
 
 Options:
+* `-g <int>`         - optional gzip with given level (default: 0; min: 0; max: 9)
 * `-l <int>`       - line length (default: 80; min: 40; max: 2000000000)
 * `-o <file_name>` - output to file (default: output is sent to stdout)
 * `-t <int>`       - no. of threads (default: no. logical cores / 2; min: 1; max: no. logical. cores)
@@ -191,9 +238,15 @@ Options:
 * `-v <int>`       - verbosity level (default: 0; min: 0; max: 2)
 
 #### Hints
-If output file name ends with `.gz' the output file will be gzipped.
+Contigs can be gzipped when `-g` flag is provided.
 
-  ### List samples in the archive
+### List reference sample name in the archive
+`agc listref [options] <in.agc> > <out.txt>`
+
+Options:
+* `-o <file_name>` - output to file (default: output is sent to stdout)
+  
+### List samples in the archive
 `agc listset [options] <in.agc> > <out.txt>`
 
 Options:
@@ -222,7 +275,7 @@ The C and C++ APIs are provided in src/lib-cxx/agc-api.h file (in C++ you can us
 You can also take a look at src/examples to see both APIs in use.
 
 ### Python library
-AGC files can be accessed also with Python wrapper for AGC API, which was created using pybind11, version 2.8.1. 
+AGC files can be accessed also with Python wrapper for AGC API, which was created using pybind11, version 2.11.1. 
 It is available for Linux and macOS.  
 
 Warning: Python binding is experimental. The library used to create binding as well as public interface may change in the future.
@@ -262,5 +315,6 @@ Archives of 94 haplotype human assemblies <a href="https://github.com/human-pang
   
 ## Citing
 S. Deorowicz, A. Danek, H. Li,
-AGC: Compact representation of assembled genomes.
-Preprint: https://doi.org/10.1101/2022.04.07.487441 (2022).
+AGC: Compact representation of assembled genomes with fast queries and updates.
+Bioinformatics, btad097 (2023)
+https://doi.org/10.1093/bioinformatics/btad097

@@ -5,10 +5,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.0
-// Date   : 2022-04-05
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
 #include "../core/agc_basic.h"
@@ -19,6 +19,7 @@
 #include <list>
 #include <set>
 #include <map>
+#include <future>
 
 // *******************************************************************************************
 class CBufferedSegPart
@@ -38,11 +39,11 @@ class CBufferedSegPart
 			kmer2(_kmer2),
 			sample_name(_sample_name),
 			contig_name(_contig_name),
-			seg_data(move(_seg_data)),
+			seg_data(move(_seg_data)),		
 			is_rev_comp(_is_rev_comp),
 			seg_part_no(_seg_part_no)
 		{};
-
+		
 		seg_part_t() :
 			kmer1(~0ull),
 			kmer2(~0ull),
@@ -55,6 +56,7 @@ class CBufferedSegPart
 
 		seg_part_t(seg_part_t&&) = default;
 		seg_part_t& operator=(const seg_part_t&) = default;
+		seg_part_t& operator=(seg_part_t&&) = default;
 		seg_part_t(const seg_part_t&) = default;
 
 		bool operator<(const struct seg_part_t& x) const
@@ -82,11 +84,11 @@ class CBufferedSegPart
 			kmer2(_kmer2),
 			sample_name(_sample_name),
 			contig_name(_contig_name),
-			seg_data(move(_seg_data)),
+			seg_data(move(_seg_data)),		
 			is_rev_comp(_is_rev_comp),
 			seg_part_no(_seg_part_no)
 		{};
-
+		
 		kk_seg_part_t() :
 			kmer1{},
 			kmer2{},
@@ -115,24 +117,62 @@ class CBufferedSegPart
 	struct list_seg_part_t {
 		mutex mtx;
 
-		list<seg_part_t> l_seg_part;
+		vector<seg_part_t> l_seg_part;
+		size_t virt_begin = 0;
 
 		list_seg_part_t() = default;
 		list_seg_part_t(const list_seg_part_t& x)
 		{
 			l_seg_part = x.l_seg_part;
+			virt_begin = x.virt_begin;
 		};
+		 
+		list_seg_part_t(list_seg_part_t&& x) noexcept
+		{
+			l_seg_part = move(x.l_seg_part);
+			virt_begin = x.virt_begin;
+		};
+
 		~list_seg_part_t() = default;
 
 		list_seg_part_t(const seg_part_t& seg_part)
 		{
 			l_seg_part.push_back(seg_part);
+			virt_begin = 0;
+		}
+
+		list_seg_part_t& operator=(const list_seg_part_t& x)
+		{
+			if (&x != this)
+			{
+				l_seg_part = x.l_seg_part;
+				virt_begin = x.virt_begin;
+			}
+
+			return *this;
+		}
+
+		list_seg_part_t& operator=(list_seg_part_t&& x) noexcept
+		{
+			if (&x != this)
+			{
+				l_seg_part = move(x.l_seg_part);
+				virt_begin = x.virt_begin;
+			}
+
+			return *this;
 		}
 
 		void append(seg_part_t&& seg_part)
 		{
 			lock_guard<mutex> lck(mtx);
 			l_seg_part.emplace_back(move(seg_part));
+		}
+
+		void emplace(uint64_t kmer1, uint64_t kmer2, const string &sample_name, const string &contig_name, contig_t &seg_data, bool is_rev_comp, uint32_t seg_part_no)
+		{
+			lock_guard<mutex> lck(mtx);
+			l_seg_part.emplace_back(kmer1, kmer2, sample_name, contig_name, seg_data, is_rev_comp, seg_part_no);
 		}
 
 		void append_no_lock(seg_part_t& seg_part)
@@ -142,27 +182,58 @@ class CBufferedSegPart
 
 		void sort()
 		{
-			l_seg_part.sort();
+			std::sort(l_seg_part.begin(), l_seg_part.end());
 		}
 
 		void clear()
 		{
 			l_seg_part.clear();
+			virt_begin = 0;
 		}
 
 		bool empty()
 		{
-			return l_seg_part.empty();
+			return virt_begin >= l_seg_part.size();
 		}
 
 		bool pop(seg_part_t& seg_part)
 		{
-			if (l_seg_part.empty())
+			if (virt_begin >= l_seg_part.size())
+			{
+				virt_begin = 0;
+				l_seg_part.clear();
+
 				return false;
+			}
 
-			seg_part = move(l_seg_part.front());
+			seg_part = move(l_seg_part[virt_begin]);
+			++virt_begin;
 
-			l_seg_part.pop_front();
+			return true;
+		}
+
+		bool pop(uint64_t &kmer1, uint64_t &kmer2, string &sample_name, string &contig_name, contig_t &seg_data, bool &is_rev_comp, uint32_t &seg_part_no)
+		{
+			if (virt_begin >= l_seg_part.size())
+			{
+				virt_begin = 0;
+				l_seg_part.clear();
+
+				return false;
+			}
+
+			auto& x = l_seg_part[virt_begin];
+
+			kmer1 = x.kmer1;
+			kmer2 = x.kmer2;
+			sample_name = move(x.sample_name);
+			contig_name = move(x.contig_name);
+			seg_data = move(x.seg_data);
+			is_rev_comp = x.is_rev_comp;
+			seg_part_no = x.seg_part_no;
+
+			++virt_begin;
+
 			return true;
 		}
 
@@ -177,8 +248,7 @@ class CBufferedSegPart
 	set<kk_seg_part_t> s_seg_part;
 	mutex mtx;
 
-	atomic<uint32_t> a_v_part_id;
-	atomic<uint32_t> a_l_part_id;
+	atomic<int32_t> a_v_part_id;
 
 public:
 	CBufferedSegPart(uint32_t no_raw_groups)
@@ -193,9 +263,10 @@ public:
 		vl_seg_part.resize(no_groups);
 	}
 
-	void add_known(uint32_t group_id, const uint64_t kmer1, const uint64_t kmer2, const string& sample_name, const string& contig_name, contig_t& seg_data, bool is_rev_comp, uint32_t seg_part_no)
+	void add_known(uint32_t group_id, uint64_t kmer1, uint64_t kmer2, const string& sample_name, const string& contig_name, contig_t&& seg_data, bool is_rev_comp, uint32_t seg_part_no)
 	{
-		vl_seg_part[group_id].append(seg_part_t(kmer1, kmer2, sample_name, contig_name, seg_data, is_rev_comp, seg_part_no));		// internal mutex
+//		vl_seg_part[group_id].append(seg_part_t(kmer1, kmer2, sample_name, contig_name, seg_data, is_rev_comp, seg_part_no));		// internal mutex
+		vl_seg_part[group_id].emplace(kmer1, kmer2, sample_name, contig_name, seg_data, is_rev_comp, seg_part_no);		// internal mutex
 	}
 
 	void add_new(uint64_t kmer1, uint64_t kmer2, const string& sample_name, const string& contig_name, contig_t& seg_data, bool is_rev_comp, uint32_t seg_part_no)
@@ -204,12 +275,27 @@ public:
 		s_seg_part.emplace(kmer1, kmer2, sample_name, contig_name, seg_data, is_rev_comp, seg_part_no);
 	}
 
-	void sort_known()
+	void sort_known(uint32_t nt)
 	{
 		lock_guard<mutex> lck(mtx);
 
-		for (auto& v : vl_seg_part)
-			v.sort();
+		vector<future<void>> v_fut;
+
+		v_fut.reserve(nt);
+
+		uint64_t n_seg_part = vl_seg_part.size();
+
+		for (uint64_t i = 0; i < nt; ++i)
+			v_fut.emplace_back(async([&, i] {
+			uint64_t j_from = i * n_seg_part / nt;
+			uint64_t j_to = (i + 1) * n_seg_part / nt;
+			
+			for (uint64_t j = j_from; j < j_to; ++j)
+				vl_seg_part[j].sort();
+				}));
+
+		for (auto& f : v_fut)
+			f.wait();
 	}
 
 	uint32_t process_new()
@@ -230,12 +316,14 @@ public:
 
 		uint32_t no_new = group_id - (uint32_t) vl_seg_part.size();
 
+		if(vl_seg_part.capacity() < group_id)
+			vl_seg_part.reserve((uint64_t)(group_id * 1.2));
 		vl_seg_part.resize(group_id);
-		
+
 		for (auto& x : s_seg_part)
 		{
 			add_known(m_kmers[make_pair(x.kmer1, x.kmer2)], x.kmer1, x.kmer2,
-				x.sample_name, x.contig_name, const_cast<contig_t&>(x.seg_data), x.is_rev_comp, x.seg_part_no);
+				x.sample_name, x.contig_name, const_cast<contig_t&&>(x.seg_data), x.is_rev_comp, x.seg_part_no);
 		}
 
 		s_seg_part.clear();
@@ -263,48 +351,52 @@ public:
 		}
 	}
 
-	void clear()
+	void clear(uint32_t nt)
 	{
 		lock_guard<mutex> lck(mtx);
 
+		vector<future<void>> v_fut;
+
+		v_fut.reserve(nt);
+
+		uint64_t n_seg_part = vl_seg_part.size();
+
+		for (uint64_t i = 0; i < nt; ++i)
+			v_fut.emplace_back(async([&, i] {
+			uint64_t j_from = i * n_seg_part / nt;
+			uint64_t j_to = (i + 1) * n_seg_part / nt;
+
+			for (uint64_t j = j_from; j < j_to; ++j)
+				vl_seg_part[j].clear();
+				}));
+
 		s_seg_part.clear();
 
-		for (auto& x : vl_seg_part)
-			x.clear();
+		for (auto& f : v_fut)
+			f.wait();
 	}
 
 	void restart_read_vec()
 	{
-		a_v_part_id = 0;
+		lock_guard<mutex> lck(mtx);
+
+		a_v_part_id = (int32_t)vl_seg_part.size() - 1;
 	}
 
 	int get_vec_id()
 	{
-		int part_id = (int)a_v_part_id.fetch_add(1);
-
-		if (part_id >= (int) vl_seg_part.size())
-			return -1;
-		else
-			return part_id;
+//		return a_v_part_id.fetch_sub(1);
+		return a_v_part_id.fetch_sub(10);
 	}
 
-	bool get_part(uint32_t group_id, uint64_t &kmer1, uint64_t &kmer2, string& sample_name, string& contig_name, contig_t& seg_data, bool& is_rev_comp, uint32_t& seg_part_no)
+	bool is_empty_part(int group_id)
 	{
-		if (group_id >= vl_seg_part.size() || vl_seg_part[group_id].empty())
-			return false;
+		return group_id < 0 || vl_seg_part[group_id].empty();
+	}
 
-		seg_part_t seg_part;
-		vl_seg_part[group_id].pop(seg_part);
-
-		kmer1 = seg_part.kmer1;
-		kmer2 = seg_part.kmer2;
-		sample_name = move(seg_part.sample_name);
-		contig_name = move(seg_part.contig_name);
-		seg_data = move(seg_part.seg_data);
-		is_rev_comp = seg_part.is_rev_comp;
-		seg_part_no = seg_part.seg_part_no;
-
-		return true;
+	bool get_part(int group_id, uint64_t &kmer1, uint64_t &kmer2, string& sample_name, string& contig_name, contig_t& seg_data, bool& is_rev_comp, uint32_t& seg_part_no)
+	{
+		return vl_seg_part[group_id].pop(kmer1, kmer2, sample_name, contig_name, seg_data, is_rev_comp, seg_part_no);
 	}
 };
 
@@ -360,10 +452,11 @@ class CAGCCompressor : public CAGCBasic
 	vector<uint64_t> v_duplicated_kmers;
 	uint64_t v_candidate_kmers_offset = 0;
 
-	hash_set_t hs_splitters{ ~0ull, 16ull, 0.5, equal_to<uint64_t>{}, MurMur64Hash{} };			// only reads after init - no need to lock
+	hash_set_t hs_splitters{ ~0ull, 16ull, 0.4, equal_to<uint64_t>{}, MurMur64Hash{} };			// only reads after init - no need to lock
+	bloom_set_t bloom_splitters;
 
-	map<pair<uint64_t, uint64_t>, int32_t> map_segments;										// shared_mutex (seg_map_mtx)
-	map<uint64_t, vector<uint64_t>> map_segments_terminators;									// shared_mutex (seg_map_mtx)
+	unordered_map<pair<uint64_t, uint64_t>, int32_t, MurMurPair64Hash> map_segments;			// shared_mutex (seg_map_mtx)
+	unordered_map<uint64_t, vector<uint64_t>, MurMur64Hash> map_segments_terminators;			// shared_mutex (seg_map_mtx)
 	vector<shared_ptr<CSegment>> v_segments;													// shared_mutex to vector (seg_vec_mtx) + internal mutexes in stored objects
 
 	uint32_t no_segments;
@@ -372,10 +465,10 @@ class CAGCCompressor : public CAGCBasic
 	const size_t contig_part_size = 512 << 10;
 
 	CBufferedSegPart buffered_seg_part{ no_raw_groups };
-	bool reproducibility_mode = false;
 
 	atomic<size_t> processed_bases;
 	atomic<uint64_t> a_part_id;
+	uint32_t processed_samples{ 0 };
 
 	vector<vector<uint64_t>> vv_splitters;
 
@@ -394,12 +487,11 @@ class CAGCCompressor : public CAGCBasic
 	unique_ptr<CBoundedPQueue<contig_t>> pq_contigs_raw;										// internal mutexes
 	unique_ptr<CBoundedQueue<contig_t>> q_contigs_data;											// internal mutexes
 
-	bool compress_contig(string sample_name, string id, contig_t& contig, ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx);
-	bool compress_contig_rep(contig_processing_stage_t contig_processing_stage, string sample_name, string id, contig_t& contig, 
+	bool compress_contig(contig_processing_stage_t contig_processing_stage, string sample_name, string id, contig_t& contig, 
 		ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx, uint32_t thread_id);
 	pair_segment_desc_t add_segment(const string &sample_name, const string &contig_name, uint32_t seg_part_no,
 		contig_t segment, CKmer kmer_front, CKmer kmer_back, ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx);
-	void register_segments();
+	void register_segments(uint32_t n_t);
 	void store_segments(ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx);
 
 	pair<pair<uint64_t, uint64_t>, bool> find_cand_segment_with_one_splitter(CKmer kmer, contig_t& segment_dir, contig_t& segment_rc, ZSTD_DCtx* zstd_dctx);
@@ -437,13 +529,16 @@ class CAGCCompressor : public CAGCBasic
 	}
 
 	// *******************************************************************************************
-	bool close_compression(const uint32_t no_threads, const bool buffered);
+	bool close_compression(const uint32_t no_threads);
 
-	void start_compressing_threads(vector<thread> &v_threads, const uint32_t n_t);
-	void start_compressing_rep_threads(vector<thread> &v_threads, my_barrier &bar, const uint32_t n_t);
-	void start_finalizing_threads(vector<thread>& v_threads, const uint32_t n_t, bool buffered);
+	void start_compressing_threads(vector<thread> &v_threads, my_barrier &bar, const uint32_t n_t);
+	void start_finalizing_threads(vector<thread>& v_threads, const uint32_t n_t);
 	void start_splitter_finding_threads(vector<thread>& v_threads, const uint32_t n_t, const vector<uint64_t>::iterator v_begin, const vector<uint64_t>::iterator v_end, vector<vector<uint64_t>>& v_splitters);
 	void start_kmer_collecting_threads(vector<thread>& v_threads, const uint32_t n_t, vector<uint64_t>& v_kmers, const size_t extra_items);
+
+	void store_metadata_impl_v1(uint32_t no_threads);
+	void store_metadata_impl_v2(uint32_t no_threads);
+	void store_metadata_impl_v3(uint32_t no_threads);
 
 	void store_metadata(uint32_t no_threads);
 	void appending_init();
@@ -473,9 +568,7 @@ public:
 
 	bool Close(const uint32_t no_threads = 1);
 
-	bool AddSampleFile(const string& _sample_name, const string& _file_name, const uint32_t _no_threads);
 	bool AddSampleFiles(vector<pair<string, string>> _v_sample_file_name, const uint32_t _no_threads);
-	bool AddSampleFilesRep(vector<pair<string, string>> _v_sample_file_name, const uint32_t _no_threads);
 };
 
 // EOF

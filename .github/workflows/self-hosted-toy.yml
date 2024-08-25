@@ -1,0 +1,681 @@
+name: Self-hosted CI TOY EXAMPLE
+
+on:
+  #push:
+  #    paths-ignore:
+  #    - '**.md'
+  workflow_dispatch:
+
+jobs:
+  toy-example:
+    strategy:
+      matrix:
+        runner: [linux-self-hosted, mac-self-hosted-M1, mac-self-hosted-Intel]
+
+    name: Toy Test Runner 
+    runs-on: ['${{ matrix.runner }}']
+    env:
+     EXE_AGC: ../agc
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
+      #  xcode-version: '14.1-beta'
+      if: ${{ matrix.runner == 'self-hosted-mac-M1' }}
+    - uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
+      #  xcode-version: '14.1-beta'
+      if: ${{ matrix.runner == 'self-hosted-mac-Intel' }}
+    - name: make CXX=g++-11 agc
+      run: |
+        make clean
+        make CXX=g++-11 agc
+   
+#CREATE
+
+    - name: toy example create
+      run: |
+        cd toy_ex
+        $EXE_AGC create -o toy.agc ref.fa a.fa b.fa c.fa
+
+    - name: toy example listref
+      run: |
+        cd toy_ex
+        echo -n "ref" > rr
+        $EXE_AGC listref toy_ex.agc > r
+        cmp r rr
+        
+    - name: toy example create (+gz)
+      run: |
+        cd toy_ex
+        gzip -k a.fa
+        gzip -k b.fa
+        gzip -k c.fa
+        gzip -k ref.fa
+        $EXE_AGC create -d -o t1.agc a.fa.gz a.fa
+        $EXE_AGC create -o t2.agc b.fa.gz b.fa
+        $EXE_AGC create -t 3 -d -o toygz.agc ref.fa.gz a.fa.gz b.fa.gz c.fa.gz
+        
+    - name: toy example listset (+gz)
+      run: |
+        cd toy_ex
+        printf "a\nb\nc\nref\n" > list
+        $EXE_AGC listset toy.agc > list_dec
+        $EXE_AGC listset toygz.agc > listgz_dec
+        cmp list list_dec 
+        cmp list listgz_dec 
+        
+    - name: toy example listctg  (+gz)
+      run: |
+        cd toy_ex
+        printf "a\n   chr1a\n   chr3a\n" > list
+        $EXE_AGC listctg toy.agc a > list_dec
+        $EXE_AGC listctg toygz.agc a > listgz_dec
+        cmp list list_dec 
+        cmp list listgz_dec 
+    
+    - name: toy example getset 
+      run: |
+        cd toy_ex
+        $EXE_AGC getset toy.agc a >  a_dec.fa
+        $EXE_AGC getset toy.agc b >  b_dec.fa
+        $EXE_AGC getset toy.agc c >  c_dec.fa
+        $EXE_AGC getset toy.agc ref >  ref_dec.fa
+        cmp a.fa a_dec.fa
+        cmp b.fa b_dec.fa
+        cmp c.fa c_dec.fa
+        cmp ref.fa ref_dec.fa
+
+    - name: toy example getset -g (+gz) 
+      run: |
+        cd toy_ex
+        $EXE_AGC getset -g 9 toygz.agc a >  a_dec.fa.gz
+        gzip -df a_dec.fa.gz
+        $EXE_AGC getset -g 6 toy.agc b >  b_dec.fa.gz
+        gzip -df b_dec.fa.gz
+        $EXE_AGC getset toygz.agc c >  c_dec.fa
+        $EXE_AGC getset -g 2 toy.agc ref >  ref_dec.fa.gz
+        gzip -df ref_dec.fa.gz
+        cmp a.fa a_dec.fa
+        cmp b.fa b_dec.fa
+        cmp c.fa c_dec.fa
+        cmp ref.fa ref_dec.fa
+        
+    - name: toy example getcol
+      run: |
+        cd toy_ex
+        mkdir getcol
+        $EXE_AGC getcol -o getcol toy.agc
+        cmp a.fa getcol/a.fa
+        cmp b.fa getcol/b.fa
+        cmp c.fa getcol/c.fa
+        cmp ref.fa getcol/ref.fa
+        rm -fr getcol 
+    
+    - name: toy example getcol (from gz)
+      run: |
+        cd toy_ex
+        mkdir getcol
+        $EXE_AGC getcol -o getcol toygz.agc
+        cmp a.fa getcol/a.fa
+        cmp b.fa getcol/b.fa
+        cmp c.fa getcol/c.fa
+        cmp ref.fa getcol/ref.fa
+        rm -fr getcol 
+
+    - name: toy example getcol -g
+      run: |
+        cd toy_ex
+        mkdir getcol
+        $EXE_AGC getcol -g 3 -o getcol toy.agc
+        cd getcol
+        gzip -df a.fa.gz
+        gzip -df b.fa.gz
+        gzip -df c.fa.gz
+        gzip -df ref.fa.gz
+        cd ..
+        cmp a.fa getcol/a.fa
+        cmp b.fa getcol/b.fa
+        cmp c.fa getcol/c.fa
+        cmp ref.fa getcol/ref.fa
+        rm -fr getcol 
+    - name: toy example getcol -g (from gz)
+      run: |
+        cd toy_ex
+        mkdir getcol
+        $EXE_AGC getcol -g 9 -o getcol toygz.agc
+        cd getcol
+        gzip -df a.fa.gz
+        gzip -df b.fa.gz
+        gzip -df c.fa.gz
+        gzip -df ref.fa.gz
+        cd ..
+        cmp a.fa getcol/a.fa
+        cmp b.fa getcol/b.fa
+        cmp c.fa getcol/c.fa
+        cmp ref.fa getcol/ref.fa
+        rm -fr getcol 
+        
+    - name: toy example getctg
+      run: |
+        cd toy_ex
+        head -n 2 a.fa > chr1a.fa
+        $EXE_AGC getctg toy.agc chr1a > chr1a_dec.fa
+        cmp chr1a.fa chr1a_dec.fa
+        
+        tail -n 2 b.fa > t.fa
+        $EXE_AGC getctg toy.agc t > t_dec.fa
+        cmp t.fa t_dec.fa
+        
+        head -n 2 ref.fa > ref-chr1.fa
+        $EXE_AGC getctg toy.agc chr1@ref > ref-chr1_dec.fa
+        cmp ref-chr1.fa ref-chr1_dec.fa
+    
+        echo ">chr1:3-10" > ctg.fa
+        echo "TAGCTAGC" >> ctg.fa
+        $EXE_AGC getctg toy.agc chr1@ref:3-10 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+        echo ">chr3a:1-3" > ctg.fa
+        echo "GTT" >> ctg.fa
+        $EXE_AGC getctg toy.agc chr3a:1-3 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+        echo ">g h i 21:3-4" > ctg.fa
+        echo "AG" >> ctg.fa
+        $EXE_AGC getctg toy.agc g:3-4 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+
+                
+    - name: toy example getctg -g (+ from gz)
+      run: |
+        cd toy_ex
+        head -n 2 a.fa > chr1a.fa
+        $EXE_AGC getctg -g 8 -o chr1a_dec.fa.gz toy.agc chr1a 
+        gzip -df chr1a_dec.fa.gz
+        cmp chr1a.fa chr1a_dec.fa
+        
+        tail -n 2 b.fa > t.fa
+        $EXE_AGC getctg toygz.agc t > t_dec.fa
+        cmp t.fa t_dec.fa
+        
+        head -n 2 ref.fa > ref-chr1.fa
+        $EXE_AGC getctg -g 5 toygz.agc chr1@ref > ref-chr1_dec.fa.gz
+        gzip -df ref-chr1_dec.fa.gz
+        cmp ref-chr1.fa ref-chr1_dec.fa
+    
+        echo ">chr1:3-10" > ctg.fa
+        echo "TAGCTAGC" >> ctg.fa
+        $EXE_AGC getctg toygz.agc chr1@ref:3-10 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+        echo ">chr3a:1-3" > ctg.fa
+        echo "GTT" >> ctg.fa
+        $EXE_AGC getctg -g 7 toy.agc chr3a:1-3 > ctg_dec.fa.gz
+        gzip -df ctg_dec.fa.gz
+        cmp ctg.fa ctg_dec.fa
+        
+        echo ">g h i 21:3-4" > ctg.fa
+        echo "AG" >> ctg.fa
+        $EXE_AGC getctg -o ctg_dec.fa.gz -g 1 toygz.agc g:3-4 
+        gzip -df ctg_dec.fa.gz
+        cmp ctg.fa ctg_dec.fa
+        
+#CREATE-C
+
+    - name: toy example create -c AND -a -c
+      run: |
+        cd toy_ex
+        gzip -k ref2.fa
+        $EXE_AGC create -c -o toy.agc ref2.fa c.fa 
+        $EXE_AGC create -a -c ref2.fa c.fa.gz  > toygz.agc
+        $EXE_AGC create -a -c ref2.fa b.fa  > toy2.agc
+        $EXE_AGC create -a -c ref2.fa.gz b.fa.gz  > toy2gz.agc
+        
+    - name: toy example listset -c
+      run: |
+        cd toy_ex
+        printf "1\n2\n3\nchr1\n" > list
+        $EXE_AGC listset toy.agc > list_dec
+        cmp list list_dec 
+        printf "c\nchr1\ng\nt\n" > list
+        $EXE_AGC listset toy2.agc > list_dec
+        cmp list list_dec 
+        printf "1\n2\n3\nchr1\n" > list
+        $EXE_AGC listset toygz.agc > list_dec
+        cmp list list_dec 
+        
+    
+    - name: toy example getset -c 
+      run: |
+        cd toy_ex
+        $EXE_AGC getset toy.agc chr1 >  chr1_dec.fa
+        $EXE_AGC getset toy.agc 1 >  1_dec.fa
+        $EXE_AGC getset toy.agc 2 >  2_dec.fa
+        $EXE_AGC getset toy.agc 3 >  3_dec.fa
+        head -n 2 c.fa > 1.fa
+        head -n 4 c.fa | tail -n 2 > 2.fa
+        tail -n 2 c.fa > 3.fa
+        cat 1.fa 1_dec.fa
+        cmp 1.fa 1_dec.fa
+        cat 2.fa 2_dec.fa
+        cmp 2.fa 2_dec.fa
+        cat 3.fa 3_dec.fa
+        cmp 3.fa 3_dec.fa
+        cmp ref2.fa chr1_dec.fa
+        $EXE_AGC getset toy2.agc chr1 >  chr1_dec.fa
+        cat ref2.fa chr1_dec.fa
+        cmp ref2.fa chr1_dec.fa
+        $EXE_AGC getset toy2.agc c >  c_dec.fa
+        $EXE_AGC getset toy2.agc g >  g_dec.fa
+        $EXE_AGC getset toy2.agc t >  t_dec.fa
+        sed -n '3p;4p' < b.fa > g.fa
+        sed -n '5p;6p' < b.fa > c_.fa
+        sed -n '7p;8p' < b.fa > t.fa
+        cat g.fa g_dec.fa
+        cmp g.fa g_dec.fa
+        cat c_.fa c_dec.fa
+        cmp c_.fa c_dec.fa
+        cat t.fa t_dec.fa
+        cmp t.fa t_dec.fa
+            
+    - name: toy example getset -c -g, from gz
+      run: |
+        cd toy_ex
+        $EXE_AGC getset toygz.agc chr1 >  chr1_dec.fa
+        $EXE_AGC getset -g 1 -o 1_dec.fa.gz toygz.agc 1 
+        $EXE_AGC getset -g 9 -o 2_dec.fa.gz toy.agc 2 
+        $EXE_AGC getset -g 4 toygz.agc 3 >  3_dec.fa.gz
+        gzip -df 1_dec.fa.gz
+        gzip -df 2_dec.fa.gz
+        gzip -df 3_dec.fa.gz
+        head -n 2 c.fa > 1.fa
+        head -n 4 c.fa | tail -n 2 > 2.fa
+        tail -n 2 c.fa > 3.fa
+        cat 1.fa 1_dec.fa
+        cmp 1.fa 1_dec.fa
+        cat 2.fa 2_dec.fa
+        cmp 2.fa 2_dec.fa
+        cat 3.fa 3_dec.fa
+        cmp 3.fa 3_dec.fa
+        cmp ref2.fa chr1_dec.fa
+        $EXE_AGC getset -g 6 toy2gz.agc chr1 >  chr1_dec.fa.gz
+        gzip -df chr1_dec.fa.gz
+        cat ref2.fa chr1_dec.fa
+        cmp ref2.fa chr1_dec.fa
+        $EXE_AGC getset toy2gz.agc c >  c_dec.fa
+        $EXE_AGC getset -g 5 toy2.agc g >  g_dec.fa.gz
+        $EXE_AGC getset -g 7 toy2gz.agc t >  t_dec.fa.gz
+        gzip -df g_dec.fa.gz
+        gzip -df t_dec.fa.gz
+        sed -n '3p;4p' < b.fa > g.fa
+        sed -n '5p;6p' < b.fa > c_.fa
+        sed -n '7p;8p' < b.fa > t.fa
+        cat g.fa g_dec.fa
+        cmp g.fa g_dec.fa
+        cat c_.fa c_dec.fa
+        cmp c_.fa c_dec.fa
+        cat t.fa t_dec.fa
+        cmp t.fa t_dec.fa
+        
+        
+    - name: toy example getcol -c
+      run: |
+        cd toy_ex
+        rm -rf getcol
+        mkdir getcol
+        $EXE_AGC getcol -o getcol toy.agc
+        cmp 1.fa getcol/1.fa
+        cmp 2.fa getcol/2.fa
+        cmp 3.fa getcol/3.fa
+        cmp ref2.fa getcol/chr1.fa
+        rm -rf getcol
+        mkdir getcol
+        $EXE_AGC getcol -o getcol toy2.agc
+        cmp c_.fa getcol/c.fa
+        cmp t.fa getcol/t.fa
+        cmp g.fa getcol/g.fa
+        cmp ref2.fa getcol/chr1.fa    
+        
+    - name: toy example getcol -c -g from gz
+      run: |
+        cd toy_ex
+        rm -rf getcol
+        mkdir getcol
+        $EXE_AGC getcol -g 1 -o getcol toygz.agc
+        cd getcol
+        gzip -df 1.fa.gz
+        gzip -df 2.fa.gz
+        gzip -df 3.fa.gz
+        gzip -df chr1.fa.gz
+        cd ..
+        cmp 1.fa getcol/1.fa
+        cmp 2.fa getcol/2.fa
+        cmp 3.fa getcol/3.fa
+        cmp ref2.fa getcol/chr1.fa
+        rm -rf getcol
+        mkdir getcol
+        $EXE_AGC getcol -g 2 -o getcol toy2.agc
+        cd getcol
+        gzip -df c.fa.gz
+        gzip -df t.fa.gz
+        gzip -df g.fa.gz
+        gzip -df chr1.fa.gz
+        cd ..
+        cmp c_.fa getcol/c.fa
+        cmp t.fa getcol/t.fa
+        cmp g.fa getcol/g.fa
+        cmp ref2.fa getcol/chr1.fa
+        
+    - name: toy example getctg -c
+      run: |
+        cd toy_ex
+        $EXE_AGC getctg toy.agc chr1 > chr1_dec.fa
+        cmp ref2.fa chr1_dec.fa
+    
+        echo ">chr1:3-7" > ctg.fa
+        echo "TAGCT" >> ctg.fa
+        $EXE_AGC getctg toy.agc chr1:3-7 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        $EXE_AGC getctg toygz.agc chr1:3-7 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+        echo ">3:3-10" > ctg.fa
+        echo "TCCCGGGA" >> ctg.fa
+        $EXE_AGC getctg toy.agc 3:3-10 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        $EXE_AGC getctg -g 3 toy.agc 3:3-10 > ctg_dec.fa.gz
+        gzip -df ctg_dec.fa.gz
+        cmp ctg.fa ctg_dec.fa
+        
+        echo ">g h i 21:3-4" > ctg.fa
+        echo "AG" >> ctg.fa
+        $EXE_AGC getctg toy2.agc g:3-4 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        $EXE_AGC getctg toy2gz.agc g:3-4 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+               
+    - name: toy example append -a + getset
+      run: |
+        cd toy_ex
+        mkdir test-toy
+        $EXE_AGC create -a -c ref2.fa b.fa  > test-toy/toy2.agc
+        $EXE_AGC append -a -c test-toy/toy2.agc c.fa > test-toy/toy3.agc
+        $EXE_AGC listset test-toy/toy3.agc
+        sed -n '1p;2p' < c.fa > test-toy/1.fa
+        sed -n '3p;4p' < c.fa > test-toy/2.fa
+        sed -n '5p;6p' < c.fa > test-toy/3.fa
+        sed -n '3p;4p' < b.fa > test-toy/g.fa
+        sed -n '5p;6p' < b.fa > test-toy/c_.fa
+        sed -n '7p;8p' < b.fa > test-toy/t.fa
+        rm -f 1_dec.fa
+        rm -f 2_dec.fa
+        rm -f 3_dec.fa
+        rm -f chr1_dec.fa
+        rm -f c_dec.fa
+        rm -f g_dec.fa
+        rm -f t_dec.fa
+        $EXE_AGC getset test-toy/toy3.agc chr1 >  test-toy/chr1_dec.fa
+        cat ref2.fa test-toy/chr1_dec.fa
+        cmp ref2.fa test-toy/chr1_dec.fa
+        $EXE_AGC getset test-toy/toy3.agc c >  test-toy/c_dec.fa
+        $EXE_AGC getset test-toy/toy3.agc g >  test-toy/g_dec.fa
+        $EXE_AGC getset test-toy/toy3.agc t >  test-toy/t_dec.fa
+        $EXE_AGC getset test-toy/toy3.agc 1 >  test-toy/1_dec.fa
+        $EXE_AGC getset test-toy/toy3.agc 2 >  test-toy/2_dec.fa
+        $EXE_AGC getset test-toy/toy3.agc 3 >  test-toy/3_dec.fa
+        cd test-toy
+        cat g.fa g_dec.fa
+        cmp g.fa g_dec.fa
+        cat c_.fa c_dec.fa
+        cmp c_.fa c_dec.fa
+        cat t.fa t_dec.fa
+        cmp t.fa t_dec.fa
+        cat 1.fa 1_dec.fa
+        cmp 1.fa 1_dec.fa
+        cat 2.fa 2_dec.fa
+        cmp 2.fa 2_dec.fa
+        cat 3.fa 3_dec.fa
+        cmp 3.fa 3_dec.fa
+
+                     
+    - name: toy example append -a + getset (-g from gz)
+      run: |
+        cd toy_ex
+        mkdir test-toy-gz
+        $EXE_AGC create -a -c ref2.fa.gz b.fa.gz  > test-toy-gz/toy2.agc
+        $EXE_AGC append -a -c test-toy-gz/toy2.agc c.fa.gz > test-toy-gz/toy3.agc
+        $EXE_AGC listset test-toy-gz/toy3.agc
+        sed -n '1p;2p' < c.fa > test-toy-gz/1.fa
+        sed -n '3p;4p' < c.fa > test-toy-gz/2.fa
+        sed -n '5p;6p' < c.fa > test-toy-gz/3.fa
+        sed -n '3p;4p' < b.fa > test-toy-gz/g.fa
+        sed -n '5p;6p' < b.fa > test-toy-gz/c_.fa
+        sed -n '7p;8p' < b.fa > test-toy-gz/t.fa
+        rm -f 1_dec.fa
+        rm -f 2_dec.fa
+        rm -f 3_dec.fa
+        rm -f chr1_dec.fa
+        rm -f c_dec.fa
+        rm -f g_dec.fa
+        rm -f t_dec.fa
+        $EXE_AGC getset -g 3 test-toy-gz/toy3.agc chr1 >  test-toy-gz/chr1_dec.fa.gz
+        cd test-toy-gz
+        gzip -fd chr1_dec.fa.gz
+        cd ..
+        cat ref2.fa test-toy-gz/chr1_dec.fa
+        cmp ref2.fa test-toy-gz/chr1_dec.fa
+        $EXE_AGC getset test-toy-gz/toy3.agc c >  test-toy-gz/c_dec.fa
+        $EXE_AGC getset test-toy-gz/toy3.agc g >  test-toy-gz/g_dec.fa
+        $EXE_AGC getset test-toy-gz/toy3.agc t >  test-toy-gz/t_dec.fa
+        $EXE_AGC getset -g 1 test-toy-gz/toy3.agc 1 >  test-toy-gz/1_dec.fa.gz
+        $EXE_AGC getset -g 1 test-toy-gz/toy3.agc 2 >  test-toy-gz/2_dec.fa.gz
+        $EXE_AGC getset -g 1 test-toy-gz/toy3.agc 3 >  test-toy-gz/3_dec.fa.gz
+        cd test-toy-gz
+        gzip -df 1_dec.fa.gz
+        gzip -df 2_dec.fa.gz
+        gzip -df 3_dec.fa.gz
+        cat g.fa g_dec.fa
+        cmp g.fa g_dec.fa
+        cat c_.fa c_dec.fa
+        cmp c_.fa c_dec.fa
+        cat t.fa t_dec.fa
+        cmp t.fa t_dec.fa
+        cat 1.fa 1_dec.fa
+        cmp 1.fa 1_dec.fa
+        cat 2.fa 2_dec.fa
+        cmp 2.fa 2_dec.fa
+        cat 3.fa 3_dec.fa
+        cmp 3.fa 3_dec.fa
+        
+        
+                       
+    - name: toy example append -c  + getcol
+      run: |
+        cd toy_ex
+        $EXE_AGC append -c toy2.agc c.fa > toy3.agc
+        $EXE_AGC append -c toy2.agc c.fa.gz > toy3gz.agc
+        rm -rf getcol
+        mkdir getcol
+        $EXE_AGC getcol -o getcol toy3.agc
+        cmp ref2.fa getcol/chr1.fa
+        cmp c_.fa getcol/c.fa
+        cmp t.fa getcol/t.fa
+        cmp g.fa getcol/g.fa
+        cmp 1.fa getcol/1.fa
+        cmp 2.fa getcol/2.fa
+        cmp 3.fa getcol/3.fa
+        mkdir getcolgz
+        $EXE_AGC getcol -g 6 -o getcolgz toy3.agc
+        cd getcolgz
+        gzip -df 1.fa.gz
+        gzip -df 2.fa.gz
+        gzip -df 3.fa.gz
+        gzip -df c.fa.gz
+        gzip -df t.fa.gz
+        gzip -df g.fa.gz
+        gzip -df chr1.fa.gz
+        cd ..
+        cmp ref2.fa getcolgz/chr1.fa
+        cmp c_.fa getcolgz/c.fa
+        cmp t.fa getcolgz/t.fa
+        cmp g.fa getcolgz/g.fa
+        cmp 1.fa getcolgz/1.fa
+        cmp 2.fa getcolgz/2.fa
+        cmp 3.fa getcolgz/3.fa
+        
+        
+        
+        
+#APPEND
+
+    - name: toy example create-append-getset
+      run: |
+        cd toy_ex
+        $EXE_AGC create -o tmp0.agc ref.fa
+        $EXE_AGC append tmp0.agc a.fa > tmp1.agc
+        $EXE_AGC append tmp1.agc b.fa > tmp2.agc
+        $EXE_AGC append tmp2.agc c.fa > toy_app.agc
+        $EXE_AGC append tmp2.agc c.fa.gz > toy_app_gz.agc
+        $EXE_AGC getset toy_app.agc a >  a_dec.fa
+        $EXE_AGC getset toy_app.agc b >  b_dec.fa
+        $EXE_AGC getset toy_app_gz.agc c >  c_dec.fa
+        $EXE_AGC getset toy_app.agc ref >  ref_dec.fa
+        cmp a.fa a_dec.fa
+        cmp b.fa b_dec.fa
+        cmp c.fa c_dec.fa
+        cmp ref.fa ref_dec.fa
+        
+    - name: toy example append listset
+      run: |
+        cd toy_ex
+        printf "a\nb\nc\nref\n" > list
+        $EXE_AGC listset toy_app.agc > list_dec
+        cmp list list_dec 
+        $EXE_AGC listset toy_app_gz.agc > list_dec
+        cmp list list_dec 
+        
+    - name: toy example append listctg
+      run: |
+        cd toy_ex
+        printf "a\n   chr1a\n   chr3a\n" > list
+        $EXE_AGC listctg toy_app.agc a > list_dec
+        cmp list list_dec 
+        $EXE_AGC listctg toy_app_gz.agc a > list_dec
+        cmp list list_dec 
+        
+    - name: toy example append getcol
+      run: |
+        cd toy_ex
+        mkdir getcola
+        $EXE_AGC getcol -o getcola toy_app.agc
+        cmp a.fa getcola/a.fa
+        cmp b.fa getcola/b.fa
+        cmp c.fa getcola/c.fa
+        cmp ref.fa getcola/ref.fa
+        
+    - name: toy example append getctg
+      run: |
+        cd toy_ex
+        head -n 2 a.fa > chr1a.fa
+        $EXE_AGC getctg toy_app.agc chr1a > chr1a_dec.fa
+        cmp chr1a.fa chr1a_dec.fa
+        
+        tail -n 2 b.fa > t.fa
+        $EXE_AGC getctg toy_app.agc t > t_dec.fa
+        cmp t.fa t_dec.fa
+        
+        head -n 2 ref.fa > ref-chr1.fa
+        $EXE_AGC getctg toy_app.agc chr1@ref > ref-chr1_dec.fa
+        cmp ref-chr1.fa ref-chr1_dec.fa
+    
+        echo ">chr1:3-10" > ctg.fa
+        echo "TAGCTAGC" >> ctg.fa
+        $EXE_AGC getctg toy_app.agc chr1@ref:3-10 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        $EXE_AGC getctg -g 1 toy_app.agc chr1@ref:3-10 > ctg_dec.fa.gz
+        gzip -fd ctg_dec.fa.gz
+        cmp ctg.fa ctg_dec.fa
+        
+        echo ">chr3a:1-3" > ctg.fa
+        echo "GTT" >> ctg.fa
+        $EXE_AGC getctg toy_app.agc chr3a:1-3 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        $EXE_AGC getctg -g 3 toy_app_gz.agc chr3a:1-3 > ctg_dec.fa.gz
+        gzip -fd ctg_dec.fa.gz
+        cmp ctg.fa ctg_dec.fa
+        
+#ADAPTIVE APPEND
+
+    - name: toy example create-append adaptive-getset
+      run: |
+        cd toy_ex
+        $EXE_AGC create -a -o tmp0.agc ref.fa
+        $EXE_AGC append -a tmp0.agc a.fa > tmp1.agc
+        $EXE_AGC append -a tmp1.agc b.fa > tmp2.agc
+        $EXE_AGC append -a tmp2.agc c.fa > toy_app.agc
+        $EXE_AGC append -a tmp2.agc c.fa > toy_app_gz.agc
+        $EXE_AGC getset toy_app.agc a >  a_dec.fa
+        $EXE_AGC getset toy_app.agc b >  b_dec.fa
+        $EXE_AGC getset toy_app_gz.agc c >  c_dec.fa
+        $EXE_AGC getset toy_app.agc ref >  ref_dec.fa
+        cmp a.fa a_dec.fa
+        cmp b.fa b_dec.fa
+        cmp c.fa c_dec.fa
+        cmp ref.fa ref_dec.fa
+        
+    - name: toy example append adaptive listset
+      run: |
+        cd toy_ex
+        printf "a\nb\nc\nref\n" > list
+        $EXE_AGC listset toy_app.agc > list_dec
+        cmp list list_dec 
+        
+    - name: toy example append adaptive listctg
+      run: |
+        cd toy_ex
+        printf "a\n   chr1a\n   chr3a\n" > list
+        $EXE_AGC listctg toy_app.agc a > list_dec
+        cmp list list_dec 
+        
+    - name: toy example append adaptive getcol
+      run: |
+        cd toy_ex
+        mkdir getcolaa
+        $EXE_AGC getcol -o getcolaa toy_app.agc
+        cmp a.fa getcolaa/a.fa
+        cmp b.fa getcolaa/b.fa
+        cmp c.fa getcolaa/c.fa
+        cmp ref.fa getcolaa/ref.fa
+        
+    - name: toy example append adaptive getctg
+      run: |
+        cd toy_ex
+        head -n 2 a.fa > chr1a.fa
+        $EXE_AGC getctg toy_app.agc chr1a > chr1a_dec.fa
+        cmp chr1a.fa chr1a_dec.fa
+        
+        tail -n 2 b.fa > t.fa
+        $EXE_AGC getctg toy_app.agc t > t_dec.fa
+        cmp t.fa t_dec.fa
+        
+        head -n 2 ref.fa > ref-chr1.fa
+        $EXE_AGC getctg toy_app.agc chr1@ref > ref-chr1_dec.fa
+        cmp ref-chr1.fa ref-chr1_dec.fa
+    
+        echo ">chr1:3-10" > ctg.fa
+        echo "TAGCTAGC" >> ctg.fa
+        $EXE_AGC getctg toy_app.agc chr1@ref:3-10 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+        echo ">chr3a:1-3" > ctg.fa
+        echo "GTT" >> ctg.fa
+        $EXE_AGC getctg toy_app.agc chr3a:1-3 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+        
+        

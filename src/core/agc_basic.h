@@ -5,10 +5,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 2.0
-// Date   : 2022-04-05
+// Version: 3.1
+// Date   : 2024-03-12
 // *******************************************************************************************
 
 #include <string>
@@ -21,7 +21,9 @@
 #include <shared_mutex>
 #include "../core/archive.h"
 #include "../core/segment.h"
-#include "../core/collection.h"
+#include "../core/collection_v1.h"
+#include "../core/collection_v2.h"
+#include "../core/collection_v3.h"
 #include "../core/queue.h"
 
 using namespace std;
@@ -33,7 +35,7 @@ class CAGCBasic
 	friend class CAGCDecompressor;
 
 protected:
-	enum class working_mode_t { none, compression, decompression, appending };
+	enum class working_mode_t { none, compression, decompression, appending, pre_appending };
 
 	const uint8_t cnv_num[128] = {
 		//		0    1	   2    3    4    5    6    7    8    9    10   11   12  13   14    15
@@ -69,7 +71,8 @@ protected:
 	uint32_t archive_version;
 
 	shared_ptr<CArchive> in_archive;															// internal mutexes
-	CCollection collection_desc;																// internal mutexes
+
+	shared_ptr<CCollection> collection_desc;
 
 	map<string, string> m_file_type_info;
 
@@ -113,11 +116,15 @@ protected:
 
 	// *******************************************************************************************
 	void join_threads(vector<thread> &v_threads);
+	bool load_metadata_impl_v1();
+	bool load_metadata_impl_v2();
+	bool load_metadata_impl_v3();
+
 	bool load_metadata();
 	bool load_file_type_info(const string& archive_name);
 
 	void reverse_complement(contig_t& contig);
-	void reverse_complement_copy(const contig_t& src_contig, contig_t& dest_contig);
+	void reverse_complement_copy(contig_t& src_contig, contig_t& dest_contig);
 
 public:
 	CAGCBasic();
