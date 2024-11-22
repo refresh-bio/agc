@@ -10,18 +10,18 @@ jobs:
   toy-example:
     strategy:
       matrix:
-        os: [ubuntu-latest, ubuntu-22.04]
+        os: [ubuntu-24.04, ubuntu-22.04]
 
     name: Toy Test GH linux
     runs-on: ${{ matrix.os }}
     env:
-     EXE_AGC: ../agc
+     EXE_AGC: ../bin/agc
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: recursive
-    - name: make CXX=g++-11 agc
-      run: make CXX=g++-11 agc
+    - name: make CXX=g++-12 agc
+      run: make CXX=g++-12 agc
 
    
 #CREATE
@@ -150,7 +150,7 @@ jobs:
         cmp list list_dec 
         
     
-    - name: toy example getset -c 
+    - name: toy example getset -c
       run: |
         cd toy_ex
         $EXE_AGC getset toy.agc chr1 >  chr1_dec.fa
@@ -354,25 +354,26 @@ jobs:
   toy-example-macos:
     strategy:
       matrix:
-        os: [macos-latest, macos-14, macos-13, macos-12]
+        os:  [macos-13, macos-12]
 
-    name: Make Test GitHub macos 
+    name: Make Test GitHub macos
     runs-on: ${{ matrix.os }}
     env:
-     EXE_AGC: ../agc
+     EXE_AGC: ../bin/agc
 
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: recursive
-    - uses: maxim-lobanov/setup-xcode@v1
-      with:
-        xcode-version: latest-stable
-      #  xcode-version: '14.1'
-    - name: make CXX=g++-11 agc
+ #   - uses: maxim-lobanov/setup-xcode@v4
+ #     with:
+ #       xcode-version: latest-stable
+ #     #  xcode-version: '14.1'
+    - name: gmake CXX=g++-12 agc
       run: |
-        make clean
-        make CXX=g++-11 agc
+        brew install make
+        gmake clean
+        gmake CXX=g++-12 agc
       
     - name: toy example
       run: |

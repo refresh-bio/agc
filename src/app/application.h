@@ -7,8 +7,8 @@
 //
 // Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.1
-// Date   : 2022-12-22
+// Version: 3.2
+// Date   : 2024-11-21
 // *******************************************************************************************
 
 #include <iostream>
@@ -68,6 +68,7 @@ struct CParams
 	b_value<uint32_t> line_length{ 80, 40, 2'000'000'000 };
 	b_value<uint32_t> verbosity{ 0, 0, 2 };
 	b_value<uint32_t> gzip_level{ 0, 0, 9 };
+	b_value<double> fallback_frac{ 0, 0, 0.05 };
 
 	uint32_t no_segments = 0;
 	bool concatenated_genomes = false;
@@ -75,6 +76,9 @@ struct CParams
 	bool store_cmd_line = true;
 	bool prefetch = true;
 	bool adaptive_compression = false;
+	bool no_ref = false;
+	bool fast = false;
+	bool streaming = false;
 
 	CParams() = default;
 };

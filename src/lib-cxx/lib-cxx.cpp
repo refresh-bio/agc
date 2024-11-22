@@ -4,11 +4,11 @@
 //
 // Copyright(C) 2021-2022, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.1
-// Date   : 2024-03-12
+// Version: 3.2
+// Date   : 2024-11-21
 // *******************************************************************************************
 
-#include "../core/agc_decompressor_lib.h"
+#include "../common/agc_decompressor_lib.h"
 #include "agc-api.h"
 #include <cstring>
 

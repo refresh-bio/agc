@@ -1,5 +1,7 @@
 name: Self-hosted CI TOY EXAMPLE
 
+
+
 on:
   #push:
   #    paths-ignore:
@@ -12,28 +14,42 @@ jobs:
       matrix:
         runner: [linux-self-hosted, mac-self-hosted-M1, mac-self-hosted-Intel]
 
-    name: Toy Test Runner 
+    name: Toy Test Runner
     runs-on: ['${{ matrix.runner }}']
     env:
-     EXE_AGC: ../agc
+     EXE_AGC: ../bin/agc
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: recursive
-    - uses: maxim-lobanov/setup-xcode@v1
-      with:
-        xcode-version: latest-stable
+  #  - uses: maxim-lobanov/setup-xcode@v1.6.0
+  #    with:
+  #      xcode-version: latest-stable
       #  xcode-version: '14.1-beta'
-      if: ${{ matrix.runner == 'self-hosted-mac-M1' }}
-    - uses: maxim-lobanov/setup-xcode@v1
-      with:
-        xcode-version: latest-stable
-      #  xcode-version: '14.1-beta'
-      if: ${{ matrix.runner == 'self-hosted-mac-Intel' }}
-    - name: make CXX=g++-11 agc
+ #     if: ${{ matrix.runner == 'self-hosted-mac-M1' }}
+ #   - uses: maxim-lobanov/setup-xcode@v1.6.0
+ #     with:
+ #       xcode-version: latest-stable
+ #     #  xcode-version: '14.1-beta'
+ #     if: ${{ matrix.runner == 'self-hosted-mac-Intel' }}
+   # - name: make CXX=g++-11 agc
+   #   run: |
+   #     make clean
+   #     make CXX=g++-11 agc
+   # - name: make CXX=g++-12 agc
+   #   run: |
+   #     make clean
+   #     make CXX=g++-12 agc
+
+    - name: make CXX=g++-13 agc
       run: |
-        make clean
-        make CXX=g++-11 agc
+        gmake clean
+        gmake CXX=g++-13 agc
+   #
+   # - name: make CXX=g++-14 agc
+   #   run: |
+   #     make clean
+   #     make CXX=g++-14 agc
    
 #CREATE
 
@@ -78,7 +94,7 @@ jobs:
         cmp list list_dec 
         cmp list listgz_dec 
     
-    - name: toy example getset 
+    - name: toy example getset
       run: |
         cd toy_ex
         $EXE_AGC getset toy.agc a >  a_dec.fa
@@ -90,7 +106,21 @@ jobs:
         cmp c.fa c_dec.fa
         cmp ref.fa ref_dec.fa
 
-    - name: toy example getset -g (+gz) 
+   
+    - name: toy example getset -p -s
+      run: |
+        cd toy_ex
+        $EXE_AGC getset -p -s toy.agc a >  a_dec.fa
+        $EXE_AGC getset -p -s toy.agc b >  b_dec.fa
+        $EXE_AGC getset -p -s toy.agc c >  c_dec.fa
+        $EXE_AGC getset -p -s toy.agc ref >  ref_dec.fa
+        cmp a.fa a_dec.fa
+        cmp b.fa b_dec.fa
+        cmp c.fa c_dec.fa
+        cmp ref.fa ref_dec.fa
+
+
+    - name: toy example getset -g (+gz)
       run: |
         cd toy_ex
         $EXE_AGC getset -g 9 toygz.agc a >  a_dec.fa.gz
@@ -190,6 +220,37 @@ jobs:
         $EXE_AGC getctg toy.agc g:3-4 > ctg_dec.fa
         cmp ctg.fa ctg_dec.fa
 
+   
+    - name: toy example getctg -p -s
+      run: |
+        cd toy_ex
+        head -n 2 a.fa > chr1a.fa
+        $EXE_AGC getctg -p -s toy.agc chr1a > chr1a_dec.fa
+        cmp chr1a.fa chr1a_dec.fa
+        
+        tail -n 2 b.fa > t.fa
+        $EXE_AGC getctg -p -s toy.agc t > t_dec.fa
+        cmp t.fa t_dec.fa
+        
+        head -n 2 ref.fa > ref-chr1.fa
+        $EXE_AGC getctg -p -s toy.agc chr1@ref > ref-chr1_dec.fa
+        cmp ref-chr1.fa ref-chr1_dec.fa
+    
+        echo ">chr1:3-10" > ctg.fa
+        echo "TAGCTAGC" >> ctg.fa
+        $EXE_AGC getctg -p -s toy.agc chr1@ref:3-10 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+        echo ">chr3a:1-3" > ctg.fa
+        echo "GTT" >> ctg.fa
+        $EXE_AGC getctg -p -s toy.agc chr3a:1-3 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+        echo ">g h i 21:3-4" > ctg.fa
+        echo "AG" >> ctg.fa
+        $EXE_AGC getctg -p -s toy.agc g:3-4 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+
                 
     - name: toy example getctg -g (+ from gz)
       run: |
@@ -250,7 +311,7 @@ jobs:
         cmp list list_dec 
         
     
-    - name: toy example getset -c 
+    - name: toy example getset -c
       run: |
         cd toy_ex
         $EXE_AGC getset toy.agc chr1 >  chr1_dec.fa
@@ -273,6 +334,40 @@ jobs:
         $EXE_AGC getset toy2.agc c >  c_dec.fa
         $EXE_AGC getset toy2.agc g >  g_dec.fa
         $EXE_AGC getset toy2.agc t >  t_dec.fa
+        sed -n '3p;4p' < b.fa > g.fa
+        sed -n '5p;6p' < b.fa > c_.fa
+        sed -n '7p;8p' < b.fa > t.fa
+        cat g.fa g_dec.fa
+        cmp g.fa g_dec.fa
+        cat c_.fa c_dec.fa
+        cmp c_.fa c_dec.fa
+        cat t.fa t_dec.fa
+        cmp t.fa t_dec.fa
+
+              
+    - name: toy example getset -c -p -s
+      run: |
+        cd toy_ex
+        $EXE_AGC getset -p -s toy.agc chr1 >  chr1_dec.fa
+        $EXE_AGC getset -p -s toy.agc 1 >  1_dec.fa
+        $EXE_AGC getset -p -s toy.agc 2 >  2_dec.fa
+        $EXE_AGC getset -p -s toy.agc 3 >  3_dec.fa
+        head -n 2 c.fa > 1.fa
+        head -n 4 c.fa | tail -n 2 > 2.fa
+        tail -n 2 c.fa > 3.fa
+        cat 1.fa 1_dec.fa
+        cmp 1.fa 1_dec.fa
+        cat 2.fa 2_dec.fa
+        cmp 2.fa 2_dec.fa
+        cat 3.fa 3_dec.fa
+        cmp 3.fa 3_dec.fa
+        cmp ref2.fa chr1_dec.fa
+        $EXE_AGC getset -p -s toy2.agc chr1 >  chr1_dec.fa
+        cat ref2.fa chr1_dec.fa
+        cmp ref2.fa chr1_dec.fa
+        $EXE_AGC getset -p -s toy2.agc c >  c_dec.fa
+        $EXE_AGC getset -p -s toy2.agc g >  g_dec.fa
+        $EXE_AGC getset -p -s toy2.agc t >  t_dec.fa
         sed -n '3p;4p' < b.fa > g.fa
         sed -n '5p;6p' < b.fa > c_.fa
         sed -n '7p;8p' < b.fa > t.fa
@@ -398,8 +493,34 @@ jobs:
         cmp ctg.fa ctg_dec.fa
         $EXE_AGC getctg toy2gz.agc g:3-4 > ctg_dec.fa
         cmp ctg.fa ctg_dec.fa
-               
-    - name: toy example append -a + getset
+
+        
+    - name: toy example getctg -c (-p -s)
+      run: |
+        cd toy_ex
+        $EXE_AGC getctg -p -s toy.agc chr1 > chr1_dec.fa
+        cmp ref2.fa chr1_dec.fa
+    
+        echo ">chr1:3-7" > ctg.fa
+        echo "TAGCT" >> ctg.fa
+        $EXE_AGC getctg -p -s toy.agc chr1:3-7 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        $EXE_AGC getctg -p -s toygz.agc chr1:3-7 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+        echo ">3:3-10" > ctg.fa
+        echo "TCCCGGGA" >> ctg.fa
+        $EXE_AGC getctg -p -s toy.agc 3:3-10 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+        echo ">g h i 21:3-4" > ctg.fa
+        echo "AG" >> ctg.fa
+        $EXE_AGC getctg -p -s toy2.agc g:3-4 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        $EXE_AGC getctg -p -s toy2gz.agc g:3-4 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+          
+    - name: toy example append -a + getset (+ getset  -p -s)
       run: |
         cd toy_ex
         mkdir test-toy
@@ -422,6 +543,9 @@ jobs:
         $EXE_AGC getset test-toy/toy3.agc chr1 >  test-toy/chr1_dec.fa
         cat ref2.fa test-toy/chr1_dec.fa
         cmp ref2.fa test-toy/chr1_dec.fa
+        $EXE_AGC getset -p -s test-toy/toy3.agc chr1 >  test-toy/chr1_dec.fa
+        cat ref2.fa test-toy/chr1_dec.fa
+        cmp ref2.fa test-toy/chr1_dec.fa
         $EXE_AGC getset test-toy/toy3.agc c >  test-toy/c_dec.fa
         $EXE_AGC getset test-toy/toy3.agc g >  test-toy/g_dec.fa
         $EXE_AGC getset test-toy/toy3.agc t >  test-toy/t_dec.fa
@@ -441,7 +565,26 @@ jobs:
         cmp 2.fa 2_dec.fa
         cat 3.fa 3_dec.fa
         cmp 3.fa 3_dec.fa
-
+        cd ..
+        $EXE_AGC getset -p -s test-toy/toy3.agc c >  test-toy/c_dec.fa
+        $EXE_AGC getset -p -s test-toy/toy3.agc g >  test-toy/g_dec.fa
+        $EXE_AGC getset -p -s test-toy/toy3.agc t >  test-toy/t_dec.fa
+        $EXE_AGC getset -p -s test-toy/toy3.agc 1 >  test-toy/1_dec.fa
+        $EXE_AGC getset -p -s test-toy/toy3.agc 2 >  test-toy/2_dec.fa
+        $EXE_AGC getset -p -s test-toy/toy3.agc 3 >  test-toy/3_dec.fa
+        cd test-toy
+        cat g.fa g_dec.fa
+        cmp g.fa g_dec.fa
+        cat c_.fa c_dec.fa
+        cmp c_.fa c_dec.fa
+        cat t.fa t_dec.fa
+        cmp t.fa t_dec.fa
+        cat 1.fa 1_dec.fa
+        cmp 1.fa 1_dec.fa
+        cat 2.fa 2_dec.fa
+        cmp 2.fa 2_dec.fa
+        cat 3.fa 3_dec.fa
+        cmp 3.fa 3_dec.fa
                      
     - name: toy example append -a + getset (-g from gz)
       run: |
@@ -533,7 +676,7 @@ jobs:
         
 #APPEND
 
-    - name: toy example create-append-getset
+    - name: toy example create-append-getset (+getset -p -s)
       run: |
         cd toy_ex
         $EXE_AGC create -o tmp0.agc ref.fa
@@ -545,6 +688,14 @@ jobs:
         $EXE_AGC getset toy_app.agc b >  b_dec.fa
         $EXE_AGC getset toy_app_gz.agc c >  c_dec.fa
         $EXE_AGC getset toy_app.agc ref >  ref_dec.fa
+        cmp a.fa a_dec.fa
+        cmp b.fa b_dec.fa
+        cmp c.fa c_dec.fa
+        cmp ref.fa ref_dec.fa
+        $EXE_AGC getset  -p -s toy_app.agc a >  a_dec.fa
+        $EXE_AGC getset  -p -s toy_app.agc b >  b_dec.fa
+        $EXE_AGC getset  -p -s toy_app_gz.agc c >  c_dec.fa
+        $EXE_AGC getset  -p -s toy_app.agc ref >  ref_dec.fa
         cmp a.fa a_dec.fa
         cmp b.fa b_dec.fa
         cmp c.fa c_dec.fa
@@ -578,29 +729,37 @@ jobs:
         cmp c.fa getcola/c.fa
         cmp ref.fa getcola/ref.fa
         
-    - name: toy example append getctg
+    - name: toy example append getctg (+ getctg -p -s)
       run: |
         cd toy_ex
         head -n 2 a.fa > chr1a.fa
         $EXE_AGC getctg toy_app.agc chr1a > chr1a_dec.fa
         cmp chr1a.fa chr1a_dec.fa
+        $EXE_AGC getctg -p -s  toy_app.agc chr1a > chr1a_dec.fa
+        cmp chr1a.fa chr1a_dec.fa
         
         tail -n 2 b.fa > t.fa
         $EXE_AGC getctg toy_app.agc t > t_dec.fa
         cmp t.fa t_dec.fa
+        $EXE_AGC getctg -p -s toy_app.agc t > t_dec.fa
+        cmp t.fa t_dec.fa
         
         head -n 2 ref.fa > ref-chr1.fa
         $EXE_AGC getctg toy_app.agc chr1@ref > ref-chr1_dec.fa
+        cmp ref-chr1.fa ref-chr1_dec.fa
+        $EXE_AGC getctg -p -s toy_app.agc chr1@ref > ref-chr1_dec.fa
         cmp ref-chr1.fa ref-chr1_dec.fa
     
         echo ">chr1:3-10" > ctg.fa
         echo "TAGCTAGC" >> ctg.fa
         $EXE_AGC getctg toy_app.agc chr1@ref:3-10 > ctg_dec.fa
         cmp ctg.fa ctg_dec.fa
+        $EXE_AGC getctg -p -s  toy_app.agc chr1@ref:3-10 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
         $EXE_AGC getctg -g 1 toy_app.agc chr1@ref:3-10 > ctg_dec.fa.gz
         gzip -fd ctg_dec.fa.gz
         cmp ctg.fa ctg_dec.fa
-        
+
         echo ">chr3a:1-3" > ctg.fa
         echo "GTT" >> ctg.fa
         $EXE_AGC getctg toy_app.agc chr3a:1-3 > ctg_dec.fa
@@ -608,10 +767,14 @@ jobs:
         $EXE_AGC getctg -g 3 toy_app_gz.agc chr3a:1-3 > ctg_dec.fa.gz
         gzip -fd ctg_dec.fa.gz
         cmp ctg.fa ctg_dec.fa
+
+        $EXE_AGC getctg -p -s toy_app.agc chr3a:1-3 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+
         
 #ADAPTIVE APPEND
 
-    - name: toy example create-append adaptive-getset
+    - name: toy example create-append adaptive-getset (+getset -p -s)
       run: |
         cd toy_ex
         $EXE_AGC create -a -o tmp0.agc ref.fa
@@ -623,6 +786,14 @@ jobs:
         $EXE_AGC getset toy_app.agc b >  b_dec.fa
         $EXE_AGC getset toy_app_gz.agc c >  c_dec.fa
         $EXE_AGC getset toy_app.agc ref >  ref_dec.fa
+        cmp a.fa a_dec.fa
+        cmp b.fa b_dec.fa
+        cmp c.fa c_dec.fa
+        cmp ref.fa ref_dec.fa
+        $EXE_AGC getset -p -s toy_app.agc a >  a_dec.fa
+        $EXE_AGC getset -p -s toy_app.agc b >  b_dec.fa
+        $EXE_AGC getset -p -s toy_app_gz.agc c >  c_dec.fa
+        $EXE_AGC getset -p -s toy_app.agc ref >  ref_dec.fa
         cmp a.fa a_dec.fa
         cmp b.fa b_dec.fa
         cmp c.fa c_dec.fa
@@ -675,6 +846,32 @@ jobs:
         echo ">chr3a:1-3" > ctg.fa
         echo "GTT" >> ctg.fa
         $EXE_AGC getctg toy_app.agc chr3a:1-3 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+
+           
+    - name: toy example append adaptive getctg (-p -s)
+      run: |
+        cd toy_ex
+        head -n 2 a.fa > chr1a.fa
+        $EXE_AGC getctg -p -s toy_app.agc chr1a > chr1a_dec.fa
+        cmp chr1a.fa chr1a_dec.fa
+        
+        tail -n 2 b.fa > t.fa
+        $EXE_AGC getctg -p -s toy_app.agc t > t_dec.fa
+        cmp t.fa t_dec.fa
+        
+        head -n 2 ref.fa > ref-chr1.fa
+        $EXE_AGC getctg -p -s toy_app.agc chr1@ref > ref-chr1_dec.fa
+        cmp ref-chr1.fa ref-chr1_dec.fa
+    
+        echo ">chr1:3-10" > ctg.fa
+        echo "TAGCTAGC" >> ctg.fa
+        $EXE_AGC getctg -p -s toy_app.agc chr1@ref:3-10 > ctg_dec.fa
+        cmp ctg.fa ctg_dec.fa
+        
+        echo ">chr3a:1-3" > ctg.fa
+        echo "GTT" >> ctg.fa
+        $EXE_AGC getctg -p -s toy_app.agc chr3a:1-3 > ctg_dec.fa
         cmp ctg.fa ctg_dec.fa
         
         

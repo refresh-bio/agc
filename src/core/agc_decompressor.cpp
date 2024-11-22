@@ -4,12 +4,12 @@
 //
 // Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.1
-// Date   : 2024-03-12
+// Version: 3.2
+// Date   : 2024-11-21
 // *******************************************************************************************
 
-#include "../core/agc_decompressor.h"
-#include "../core/genome_io.h"
+#include "agc_decompressor.h"
+#include "genome_io.h"
 #include <filesystem>
 #include <chrono>
 
@@ -26,62 +26,6 @@ CAGCDecompressor::~CAGCDecompressor()
 }
 
 // *******************************************************************************************
-void CAGCDecompressor::convert_and_split_into_lines(contig_t& ctg, contig_t& working_space, uint32_t line_len)
-{
-	if (ctg.empty())
-		return;
-
-	size_t dest_size = ctg.size() + (ctg.size() + line_len - 1) / line_len;
-	working_space.resize(dest_size);
-
-	auto p = ctg.data();
-	auto q = working_space.data();
-
-	size_t to_save = ctg.size();
-
-	for (; to_save > line_len; to_save -= line_len)
-	{
-		uint32_t i;
-
-		switch (i = line_len % 8)
-		{
-		case 7:	*q++ = cnv_num[*p++]; [[fallthrough]];
-		case 6:	*q++ = cnv_num[*p++]; [[fallthrough]];
-		case 5:	*q++ = cnv_num[*p++]; [[fallthrough]];
-		case 4:	*q++ = cnv_num[*p++]; [[fallthrough]];
-		case 3:	*q++ = cnv_num[*p++]; [[fallthrough]];
-		case 2:	*q++ = cnv_num[*p++]; [[fallthrough]];
-		case 1:	*q++ = cnv_num[*p++];
-		}
-
-		for (; i < line_len; i += 8)
-		{
-			*q++ = cnv_num[*p++];
-			*q++ = cnv_num[*p++];
-			*q++ = cnv_num[*p++];
-			*q++ = cnv_num[*p++];
-			*q++ = cnv_num[*p++];
-			*q++ = cnv_num[*p++];
-			*q++ = cnv_num[*p++];
-			*q++ = cnv_num[*p++];
-		}
-
-		*q++ = '\n';
-	}
-
-	if (to_save)
-	{
-		while (to_save--)
-			*q++ = cnv_num[*p++];
-		*q++ = '\n';
-	}
-
-	assert(q == working_space.data() + working_space.size());
-
-	std::swap(ctg, working_space);
-}
-
-// *******************************************************************************************
 void CAGCDecompressor::gzip_contig(contig_t& ctg, contig_t& working_space, refresh::gz_in_memory& gzip_compressor)
 {
 	auto overhead = gzip_compressor.get_overhead(ctg.size());
@@ -94,10 +38,10 @@ void CAGCDecompressor::gzip_contig(contig_t& ctg, contig_t& working_space, refre
 }
  
 // *******************************************************************************************
-void CAGCDecompressor::start_decompressing_threads(vector<thread>& v_threads, const uint32_t n_t, uint32_t gzip_level, uint32_t line_len)
+void CAGCDecompressor::start_decompressing_threads(vector<thread>& v_threads, const uint32_t n_t, uint32_t gzip_level, uint32_t line_len, bool fast)
 {
 	for (uint32_t i = 0; i < n_t; ++i)
-		v_threads.emplace_back([&, i, gzip_level, line_len] {
+		v_threads.emplace_back([&, i, gzip_level, line_len, fast] {
 
 		auto zstd_ctx = ZSTD_createDCtx();
 
@@ -112,13 +56,13 @@ void CAGCDecompressor::start_decompressing_threads(vector<thread>& v_threads, co
 
 			size_t priority = contig_desc.priority;
 
-			if (!decompress_contig(contig_desc, zstd_ctx, ctg))
+			if (!decompress_contig(contig_desc, zstd_ctx, ctg, fast))
 				continue;
 
 			if(line_len == 0)
-				convert_to_alpha(ctg);
+				CNumAlphaConverter::convert_to_alpha(ctg);
 			else
-				convert_and_split_into_lines(ctg, working_space, line_len);
+				CNumAlphaConverter::convert_and_split_into_lines(ctg, working_space, line_len);
 
 			if (gzip_level)
 				gzip_contig(ctg, working_space, gzip_compressor);
@@ -163,7 +107,7 @@ bool CAGCDecompressor::AssignArchive(const CAGCBasic& agc_basic)
 }
 
 // *******************************************************************************************
-bool CAGCDecompressor::GetCollectionFiles(const string& _path, const uint32_t _line_length, const uint32_t no_threads, const uint32_t gzip_level, uint32_t verbosity)
+bool CAGCDecompressor::GetCollectionFiles(const string& _path, const uint32_t _line_length, const uint32_t no_threads, const uint32_t gzip_level, bool no_ref, bool fast, uint32_t verbosity)
 {
 	if (working_mode != working_mode_t::decompression)
 		return false;
@@ -179,7 +123,10 @@ bool CAGCDecompressor::GetCollectionFiles(const string& _path, const uint32_t _l
 		return false;
 	}
 
-	collection_desc->get_samples_list(v_samples);
+	collection_desc->get_samples_list(v_samples, false);
+
+	if (no_ref && !v_samples.empty())
+		v_samples.erase(v_samples.begin());
 
 	q_contig_tasks = make_unique<CBoundedQueue<contig_task_t>>(1, 1);
 	pq_contigs_to_save = make_unique<CPriorityQueue<sample_contig_data_t>>(no_threads);
@@ -194,6 +141,7 @@ bool CAGCDecompressor::GetCollectionFiles(const string& _path, const uint32_t _l
 		uint32_t global_id = 0;
 		string prev_sample_name;
 		bool is_gio_opened = false;
+		size_t file_id = 0;
 
 		string eol = "";
 
@@ -219,7 +167,7 @@ bool CAGCDecompressor::GetCollectionFiles(const string& _path, const uint32_t _l
 					gio.Open(cur_path.string(), true);
 					if (verbosity > 0)
 					{
-						cerr << eol << cur_path.string();
+						cerr << eol << cur_path.string() << "  (" << ++file_id << " of " << v_samples.size() << ")";
 						eol = "\n";
 					}
 				}
@@ -248,7 +196,7 @@ bool CAGCDecompressor::GetCollectionFiles(const string& _path, const uint32_t _l
 
 	q_contig_tasks->Restart(1);
 
-	start_decompressing_threads(v_threads, no_threads, gzip_level, _line_length);
+	start_decompressing_threads(v_threads, no_threads, gzip_level, _line_length, fast);
 
 	sample_desc_t sample_desc;
 
@@ -362,7 +310,7 @@ bool CAGCDecompressor::GetSampleFile(const string& _file_name, const vector<stri
 		for (uint32_t i = 0; i < sample_desc.size(); ++i, ++global_i)
 			v_tasks.emplace_back(global_i, "", sample_desc[i].first, sample_desc[i].second);
 
-		sort(v_tasks.begin(), v_tasks.end(), [](auto& x, auto& y) {return x.segments.size() > y.segments.size(); });
+		std::sort(v_tasks.begin(), v_tasks.end(), [](auto& x, auto& y) {return x.segments.size() > y.segments.size(); });
 
 		q_contig_tasks->Restart(1);
 
@@ -384,6 +332,71 @@ bool CAGCDecompressor::GetSampleFile(const string& _file_name, const vector<stri
 
 	q_contig_tasks.release();
 	pq_contigs_to_save.release();
+
+	return true;
+}
+
+// *******************************************************************************************
+bool CAGCDecompressor::GetSampleForStreaming(const string& _file_name, const vector<string>& sample_names, const uint32_t _line_length, const uint32_t no_threads, const uint32_t gzip_level, uint32_t verbosity)
+{
+	if (working_mode != working_mode_t::decompression)
+		return false;
+
+	contig_t ctg, working_space;
+	contig_task_t contig_desc;
+
+	FILE* stream;
+
+	if (_file_name.empty())
+	{
+		stream = stdout;
+#ifdef _WIN32
+		_setmode(_fileno(stream), _O_BINARY);
+#endif
+	}
+	else
+	{
+		stream = fopen(_file_name.c_str(), "wb");
+		if (!stream)
+		{
+//			if(app_mode)
+			// !!! TODO: check app mode
+			cerr << "Cannot open destination file: " << _file_name << endl;
+			return false;
+		}
+		setvbuf(stream, nullptr, _IOFBF, 1 << 20);
+	}
+
+	auto zstd_ctx = ZSTD_createDCtx();
+
+	CStreamWrapper stream_wrapper(stream, _line_length, gzip_level);
+
+	for (const auto &s : sample_names)
+	{
+		sample_desc_t sample_desc;
+
+		if (!collection_desc->get_sample_desc(s, sample_desc))
+		{
+			cerr << "There is no sample " << s << endl;
+
+			return false;
+		}
+
+		for (auto contig_desc : sample_desc)
+		{
+			contig_task_t contig_task(0, "", contig_desc.first, contig_desc.second);
+
+			stream_wrapper.start_contig(contig_desc.first);
+
+			if (!decompress_contig_streaming(contig_task, zstd_ctx, stream_wrapper, false))
+				continue;
+		}
+	}
+
+	if (!_file_name.empty())
+		fclose(stdout);
+
+	ZSTD_freeDCtx(zstd_ctx);
 
 	return true;
 }
@@ -550,6 +563,101 @@ bool CAGCDecompressor::GetContigFile(const string& _file_name, const vector<stri
 
 	q_contig_tasks.release();
 	pq_contigs_to_save.release();
+
+	return true;
+}
+
+// *******************************************************************************************
+bool CAGCDecompressor::GetContigForStreaming(const string& _file_name, const vector<string>& contig_names, const uint32_t _line_length, const uint32_t no_threads, const uint32_t gzip_level, uint32_t verbosity)
+{
+	if (working_mode != working_mode_t::decompression)
+		return false;
+
+	vector<pair<string, name_range_t>> v_sample_contig;
+	name_range_t name_range;
+	string sample;
+
+	for (const auto &cn : contig_names)
+	{
+		if (!analyze_contig_query(cn, sample, name_range))
+		{
+			cerr << "Wrong contig format: " << cn << endl;
+			continue;
+		}
+
+		if (!sample.empty())
+		{
+			if (!collection_desc->is_contig_desc(sample, name_range.name))
+			{
+				cerr << "There is no sample:contig pair: " << sample << " : " << name_range.name << endl;
+				return false;
+			}
+
+			v_sample_contig.emplace_back(sample, name_range_t(name_range.name, name_range.from, name_range.to));
+		}
+		else
+		{
+			auto v_cand_samples = collection_desc->get_samples_for_contig(name_range.name);
+			if (v_cand_samples.size() == 0)
+			{
+				cerr << "There is no contig: " << name_range.name << endl;
+				return false;
+			}
+			if (v_cand_samples.size() > 1)
+			{
+				cerr << "There are " << v_cand_samples.size() << " samples with conting: " << name_range.name << endl;
+				return false;
+			}
+
+			v_sample_contig.emplace_back(v_cand_samples.front(), name_range_t(name_range.name, name_range.from, name_range.to));
+		}
+	}
+
+	FILE* stream;
+
+	if (_file_name.empty())
+	{
+		stream = stdout;
+#ifdef _WIN32
+		_setmode(_fileno(stream), _O_BINARY);
+#endif
+	}
+	else
+	{
+		stream = fopen(_file_name.c_str(), "wb");
+		if (!stream)
+		{
+			//			if(app_mode)
+						// !!! TODO: check app mode
+			cerr << "Cannot open destination file: " << _file_name << endl;
+			return false;
+		}
+		setvbuf(stream, nullptr, _IOFBF, 1 << 20);
+	}
+
+	auto zstd_ctx = ZSTD_createDCtx();
+
+	CStreamWrapper stream_wrapper(stream, _line_length, gzip_level);
+
+	for (auto& p_sc : v_sample_contig)
+	{
+		vector<segment_desc_t> contig_desc;
+		collection_desc->get_contig_desc(p_sc.first, p_sc.second.name, contig_desc);
+
+//		contig_task_t contig_task(0, p_sc.first, p_sc.second.name, contig_desc);
+		contig_task_t contig_task(0, p_sc.first, p_sc.second, contig_desc);
+
+//		stream_wrapper.start_contig(p_sc.second.name);
+		stream_wrapper.start_contig(p_sc.second.str());
+
+		if (!decompress_contig_streaming(contig_task, zstd_ctx, stream_wrapper, false))
+			continue;
+	}
+
+	if (!_file_name.empty())
+		fclose(stdout);
+
+	ZSTD_freeDCtx(zstd_ctx);
 
 	return true;
 }

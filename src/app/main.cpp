@@ -4,8 +4,8 @@
 //
 // Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.1
-// Date   : 2024-03-12
+// Version: 3.2
+// Date   : 2024-11-21
 // *******************************************************************************************
 
 #include <iostream>
@@ -16,8 +16,8 @@
 #include <filesystem>
 
 #ifdef _MSC_VER 
-//#include <mimalloc.h>
-//#include <mimalloc-new-delete.h>
+#include <mimalloc.h>
+#include <mimalloc-new-delete.h>
 #endif
 
 #include "../app/application.h"
@@ -89,7 +89,8 @@ bool CApplication::create()
         execution_params.concatenated_genomes,
         execution_params.adaptive_compression,
         execution_params.verbosity(),
-        execution_params.no_threads());
+        execution_params.no_threads(),
+        execution_params.fallback_frac());
 
     if (!r)
     {
@@ -127,8 +128,15 @@ bool CApplication::append()
 
     sanitize_input_file_names(execution_params.input_names);
 
-    bool r = agc_c.Append(execution_params.in_archive_name, execution_params.out_archive_name, execution_params.verbosity(), true, execution_params.concatenated_genomes, execution_params.adaptive_compression,
-        execution_params.no_threads());
+    bool r = agc_c.Append(
+        execution_params.in_archive_name, 
+        execution_params.out_archive_name, 
+        execution_params.verbosity(), 
+        true, 
+        execution_params.concatenated_genomes, 
+        execution_params.adaptive_compression,
+        execution_params.no_threads(),
+        execution_params.fallback_frac());
 
     if (!r)
     {
@@ -177,6 +185,8 @@ bool CApplication::getcol()
         execution_params.line_length(), 
         execution_params.no_threads(),
         execution_params.gzip_level(),
+        execution_params.no_ref,
+        execution_params.fast,
         execution_params.verbosity());
         
     r &= agc_d.Close();
@@ -197,14 +207,23 @@ bool CApplication::getset()
         return false;
     }
 
-    r &= agc_d.GetSampleFile(
-        execution_params.output_name,
-        execution_params.sample_names, 
-        execution_params.line_length(), 
-        execution_params.no_threads(),
-        execution_params.gzip_level(),
-        execution_params.verbosity());
-
+    if(execution_params.streaming)
+        r &= agc_d.GetSampleForStreaming(
+            execution_params.output_name,
+            execution_params.sample_names,
+            execution_params.line_length(),
+            execution_params.no_threads(),
+            execution_params.gzip_level(),
+            execution_params.verbosity());
+    else
+        r &= agc_d.GetSampleFile(
+            execution_params.output_name,
+            execution_params.sample_names,
+            execution_params.line_length(),
+            execution_params.no_threads(),
+            execution_params.gzip_level(),
+            execution_params.verbosity());
+    
     r &= agc_d.Close();
 
     return r;
@@ -223,13 +242,22 @@ bool CApplication::getctg()
         return false;
     }
 
-    r &= agc_d.GetContigFile(
-        execution_params.output_name, 
-        execution_params.contig_names, 
-        execution_params.line_length(), 
-        execution_params.no_threads(),
-        execution_params.gzip_level(),
-        execution_params.verbosity());
+    if (execution_params.streaming)
+        r &= agc_d.GetContigForStreaming(
+            execution_params.output_name, 
+            execution_params.contig_names, 
+            execution_params.line_length(), 
+            execution_params.no_threads(),
+            execution_params.gzip_level(),
+            execution_params.verbosity());
+    else
+        r &= agc_d.GetContigFile(
+            execution_params.output_name,
+            execution_params.contig_names,
+            execution_params.line_length(),
+            execution_params.no_threads(),
+            execution_params.gzip_level(),
+            execution_params.verbosity());
 
     r &= agc_d.Close();
 
@@ -358,16 +386,19 @@ bool CApplication::info()
     uint32_t kmer_length;
     uint32_t min_match_len;
     uint32_t pack_cardinality;
+    uint32_t segment_size;
     string ref_name;
 
     agc_d.ListSamples(v_sample_names);
     agc_d.GetCmdLines(cmd_lines);
-    agc_d.GetParams(kmer_length, min_match_len, pack_cardinality);
+    agc_d.GetParams(kmer_length, min_match_len, pack_cardinality, segment_size);
     agc_d.GetReferenceSample(ref_name);
 
     cerr << "No. samples      : " << v_sample_names.size() << endl;
     cerr << "k-mer length     : " << kmer_length << endl;
     cerr << "Min. match length: " << min_match_len << endl;
+    if(segment_size)
+        cerr << "Segment size     : " << segment_size << endl;
     cerr << "Batch size       : " << pack_cardinality << endl;
     cerr << "Reference name   : " << ref_name << endl;
     cerr << "Command lines:" << endl;

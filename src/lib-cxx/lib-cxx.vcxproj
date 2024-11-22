@@ -78,11 +78,11 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>../../3rd_party/zstd/lib;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+    <IncludePath>../..\3rd_party\libdeflate;../../3rd_party;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>../../3rd_party/zstd/lib;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+    <IncludePath>../..\3rd_party\libdeflate;../../3rd_party;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -128,7 +128,7 @@
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
       <AdditionalOptions>/D_CRT_SECURE_NO_WARNINGS %(AdditionalOptions)</AdditionalOptions>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>
@@ -148,7 +148,7 @@
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
       <AdditionalOptions>/D_CRT_SECURE_NO_WARNINGS %(AdditionalOptions)</AdditionalOptions>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc11</LanguageStandard_C>
     </ClCompile>
     <Link>
@@ -160,31 +160,33 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\core\agc_basic.h" />
-    <ClInclude Include="..\core\agc_decompressor_lib.h" />
-    <ClInclude Include="..\core\archive.h" />
-    <ClInclude Include="..\core\collection.h" />
-    <ClInclude Include="..\core\defs.h" />
-    <ClInclude Include="..\core\io.h" />
-    <ClInclude Include="..\core\lz_diff.h" />
-    <ClInclude Include="..\core\queue.h" />
-    <ClInclude Include="..\core\segment.h" />
-    <ClInclude Include="..\core\utils.h" />
+    <ClInclude Include="..\common\agc_basic.h" />
+    <ClInclude Include="..\common\agc_decompressor_lib.h" />
+    <ClInclude Include="..\common\archive.h" />
+    <ClInclude Include="..\common\collection.h" />
+    <ClInclude Include="..\common\collection_v1.h" />
+    <ClInclude Include="..\common\collection_v2.h" />
+    <ClInclude Include="..\common\collection_v3.h" />
+    <ClInclude Include="..\common\defs.h" />
+    <ClInclude Include="..\common\io.h" />
+    <ClInclude Include="..\common\lz_diff.h" />
+    <ClInclude Include="..\common\queue.h" />
+    <ClInclude Include="..\common\segment.h" />
+    <ClInclude Include="..\common\utils.h" />
     <ClInclude Include="agc-api.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\core\agc_basic.cpp" />
-    <ClCompile Include="..\core\agc_decompressor_lib.cpp" />
-    <ClCompile Include="..\core\archive.cpp" />
-    <ClCompile Include="..\core\collection.cpp" />
-    <ClCompile Include="..\core\lz_diff.cpp" />
-    <ClCompile Include="..\core\segment.cpp" />
+    <ClCompile Include="..\common\agc_basic.cpp" />
+    <ClCompile Include="..\common\agc_decompressor_lib.cpp" />
+    <ClCompile Include="..\common\archive.cpp" />
+    <ClCompile Include="..\common\collection.cpp" />
+    <ClCompile Include="..\common\collection_v1.cpp" />
+    <ClCompile Include="..\common\collection_v2.cpp" />
+    <ClCompile Include="..\common\collection_v3.cpp" />
+    <ClCompile Include="..\common\lz_diff.cpp" />
+    <ClCompile Include="..\common\segment.cpp" />
+    <ClCompile Include="..\common\utils.cpp" />
     <ClCompile Include="lib-cxx.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\3rd_party\zstd\build\VS2022\libzstd\libzstd.vcxproj">
-      <Project>{8bfd8150-94d5-4bf9-8a50-7bd9929a0850}</Project>
-    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -112,7 +112,6 @@ libagc: $(AGC_CXX_DIR)/lib-cxx.o \
 	$(AGC_CORE_DIR)/collection_v1.o \
 	$(AGC_CORE_DIR)/collection_v2.o \
 	$(AGC_CORE_DIR)/collection_v3.o \
-	$(AGC_CORE_DIR)/genome_io.o \
 	$(AGC_CORE_DIR)/lz_diff.o \
 	$(AGC_CORE_DIR)/segment.o \
 	$(AGC_CORE_DIR)/utils.o 

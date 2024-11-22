@@ -11,8 +11,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libzstd", "3rd_party\zstd\b
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Raduls", "3rd_party\raduls-inplace\Raduls\Raduls.vcxproj", "{4C0F01B6-4967-40E6-A39A-90D9BB2281AD}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "isa-l-vc", "3rd_party\isa-l\isa-l-vc.vcxproj", "{68837F79-3D7F-4F4A-AF10-99383B70F7A9}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libdeflate_static", "3rd_party\libdeflate\build-vs\libdeflate_static.vcxproj", "{0DF64642-6604-30B0-9FFA-1BB593BA2CB1}"
 EndProject
 Global
@@ -91,22 +89,6 @@ Global
 		{4C0F01B6-4967-40E6-A39A-90D9BB2281AD}.RelWithDebInfo|x64.Build.0 = Release|x64
 		{4C0F01B6-4967-40E6-A39A-90D9BB2281AD}.RelWithDebInfo|x86.ActiveCfg = Release|Win32
 		{4C0F01B6-4967-40E6-A39A-90D9BB2281AD}.RelWithDebInfo|x86.Build.0 = Release|Win32
-		{68837F79-3D7F-4F4A-AF10-99383B70F7A9}.Debug|x64.ActiveCfg = Debug|x64
-		{68837F79-3D7F-4F4A-AF10-99383B70F7A9}.Debug|x64.Build.0 = Debug|x64
-		{68837F79-3D7F-4F4A-AF10-99383B70F7A9}.Debug|x86.ActiveCfg = Debug|Win32
-		{68837F79-3D7F-4F4A-AF10-99383B70F7A9}.Debug|x86.Build.0 = Debug|Win32
-		{68837F79-3D7F-4F4A-AF10-99383B70F7A9}.MinSizeRel|x64.ActiveCfg = Debug|x64
-		{68837F79-3D7F-4F4A-AF10-99383B70F7A9}.MinSizeRel|x64.Build.0 = Debug|x64
-		{68837F79-3D7F-4F4A-AF10-99383B70F7A9}.MinSizeRel|x86.ActiveCfg = Debug|Win32
-		{68837F79-3D7F-4F4A-AF10-99383B70F7A9}.MinSizeRel|x86.Build.0 = Debug|Win32
-		{68837F79-3D7F-4F4A-AF10-99383B70F7A9}.Release|x64.ActiveCfg = Release|x64
-		{68837F79-3D7F-4F4A-AF10-99383B70F7A9}.Release|x64.Build.0 = Release|x64
-		{68837F79-3D7F-4F4A-AF10-99383B70F7A9}.Release|x86.ActiveCfg = Release|Win32
-		{68837F79-3D7F-4F4A-AF10-99383B70F7A9}.Release|x86.Build.0 = Release|Win32
-		{68837F79-3D7F-4F4A-AF10-99383B70F7A9}.RelWithDebInfo|x64.ActiveCfg = Release|x64
-		{68837F79-3D7F-4F4A-AF10-99383B70F7A9}.RelWithDebInfo|x64.Build.0 = Release|x64
-		{68837F79-3D7F-4F4A-AF10-99383B70F7A9}.RelWithDebInfo|x86.ActiveCfg = Release|Win32
-		{68837F79-3D7F-4F4A-AF10-99383B70F7A9}.RelWithDebInfo|x86.Build.0 = Release|Win32
 		{0DF64642-6604-30B0-9FFA-1BB593BA2CB1}.Debug|x64.ActiveCfg = Debug|x64
 		{0DF64642-6604-30B0-9FFA-1BB593BA2CB1}.Debug|x64.Build.0 = Debug|x64
 		{0DF64642-6604-30B0-9FFA-1BB593BA2CB1}.Debug|x86.ActiveCfg = Debug|x64

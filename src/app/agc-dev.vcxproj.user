@@ -1,13 +1,13 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <LocalDebuggerCommandArguments>getcol -g 4 -o dec/ -v 1 hpp_small.agc</LocalDebuggerCommandArguments>
-    <LocalDebuggerWorkingDirectory>j:\agc</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerCommandArguments>create -a -o f50.agc -i fl50 -f 0.0001 -v 1 -t 32 col\100000_CHM13.pri.fa.gz</LocalDebuggerCommandArguments>
+    <LocalDebuggerWorkingDirectory>j:\agc\heng</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LocalDebuggerCommandArguments>create -o test-camp-1.agc -v 2 -t 1 -i fl1 camp-gz/SAMEA1010245.contigs.fa</LocalDebuggerCommandArguments>
-    <LocalDebuggerWorkingDirectory>j:\agc</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerCommandArguments>create -t 16 -i salmo.fl -o t.agc -a -k 17 -b 300 -s 3000 -v 1 -r salmonella_enterica__01/SAMEA104364886.fa -f 0.005</LocalDebuggerCommandArguments>
+    <LocalDebuggerWorkingDirectory>k:\atb</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
 </Project>

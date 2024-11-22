@@ -19,3 +19,6 @@ x64
 /agc
 /bin/obj/libzstd_x64_Release
 /bin/x64_Release
+/3rd_party/nasm
+/bin
+/obj

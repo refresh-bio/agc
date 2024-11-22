@@ -7,24 +7,17 @@
 //
 // Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.1
-// Date   : 2024-03-12
+// Version: 3.2
+// Date   : 2024-11-21
 // *******************************************************************************************
 
 #include <cstdio>
 #include <vector>
 #include <string>
 #include <cinttypes>
-#include "defs.h"
-//#include <zlib.h>
-/*#ifdef _MSC_VER
-#include "../../../3rd_party/zlib-ng/build-vs/zlib.h"
-#else
-#include "../../../3rd_party/zlib-ng/zlib.h"
-#endif*/
-//#include <zlib-ng.h>
-#include "../../libs/file_wrapper.h"
-#include "../../libs/gz_wrapper.h"
+#include "../common/defs.h"
+#include <refresh/compression/lib/file_wrapper.h>
+#include <refresh/compression/lib/gz_wrapper.h>
 
 #ifndef _WIN32
 #define my_fseek	fseek
@@ -55,10 +48,7 @@ class CGenomeIO
 	string file_name;
 	bool writing;
 
-//	FILE* in;
 	FILE* out;
-//	gzFile gz_in;
-//	gzFile gz_out;
 	bool is_gzipped;
 	bool use_stdout;
 
@@ -69,8 +59,8 @@ class CGenomeIO
 	vector<uint8_t> gzip_zero_compressor_buffer;
 
 	uint8_t* buffer;
-	const size_t buffer_size = 128 << 20;
-	const size_t gz_buffer_size = 32 << 20;
+	const size_t write_buffer_size = 32 << 20;
+	const size_t read_buffer_size = 4 << 20;
 	size_t buffer_filled;
 	size_t buffer_pos;
 

@@ -4,11 +4,11 @@
 //
 // Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.1
-// Date   : 2024-03-12
+// Version: 3.2
+// Date   : 2024-11-21
 // *******************************************************************************************
 
-#include "../core/genome_io.h"
+#include "genome_io.h"
 #include <algorithm>
 #include <numeric>
 #include <cctype>
@@ -19,10 +19,7 @@ CGenomeIO::CGenomeIO()
 {
 	writing = false;
 
-//	in = nullptr;
 	out = nullptr;
-//	gz_in = nullptr;
-//	gz_out = nullptr;
 
 	is_gzipped = false;
 	use_stdout = false;
@@ -46,67 +43,41 @@ CGenomeIO::~CGenomeIO()
 // *******************************************************************************************
 bool CGenomeIO::Open(const string& _file_name, const bool _writing)
 {
-//	if (in || out || gz_in || gz_out || sif)
 	if (out || sif)
 		return false;
 
-//	is_gzipped = _file_name.length() > 3 && _file_name.substr(_file_name.length() - 3, 3) == ".gz"s;
 	use_stdout = _file_name.empty();
 	writing = _writing;
 
 	if (writing)
 	{
-/*		if (is_gzipped)
+		if (use_stdout)
 		{
-			gz_out = gzopen(_file_name.c_str(), "w3");
-			if (!gz_out)
-				return false;
-			gzbuffer(gz_out, (uint32_t) gz_buffer_size);
-		}
-		else*/
-		{
-			if (use_stdout)
-			{
-				out = stdout;
+			out = stdout;
 #ifdef _WIN32
-				_setmode(_fileno(out), _O_BINARY);
+			_setmode(_fileno(out), _O_BINARY);
 #endif
-			}
-			else
-			{
-				out = fopen(_file_name.c_str(), "wb");
-				if (!out)
-					return false;
-				setvbuf(out, nullptr, _IOFBF, buffer_size);
+		}
+		else
+		{
+			out = fopen(_file_name.c_str(), "wb");
+			if (!out)
+				return false;
+			setvbuf(out, nullptr, _IOFBF, write_buffer_size);
 
-			}
 		}
 
 		buffer = nullptr;
 	}
 	else
 	{
-/*		if (is_gzipped)
-		{
-			gz_in = gzopen(_file_name.c_str(), "r");
-			if (!gz_in)
-				return false;
-			gzbuffer(gz_in, (uint32_t) gz_buffer_size);
-		}
-		else
-		{
-			in = fopen(_file_name.c_str(), "rb");
-			if (!in)
-				return false;
-		}*/
-
 		sif = new refresh::stream_in_file(_file_name);
 		if (!sif->is_open())
 			return false;
 
 		sdf = new refresh::stream_decompression(sif);
 
-		buffer = new uint8_t[buffer_size];
+		buffer = new uint8_t[read_buffer_size];
 	}
 
 	buffer_pos = 0;
@@ -120,12 +91,7 @@ bool CGenomeIO::Close()
 {
 	if (writing)
 	{
-/*		if (gz_out)
-		{
-			gzclose(gz_out);
-			gz_out = nullptr;
-		}
-		else*/ if (out)
+		if (out)
 		{
 			fflush(out);
 			if(!use_stdout)
@@ -135,20 +101,8 @@ bool CGenomeIO::Close()
 	}
 	else
 	{
-/*		if (gz_in)
-		{
-			gzclose(gz_in);
-			gz_in = nullptr;
-		}
-		else if (in)
-		{
-			fclose(in);
-			in = nullptr;
-		}*/
-
 		if (sif)
 		{
-//			sif->close();
 			delete sdf;
 			delete sif;
 			sif = nullptr;
@@ -171,22 +125,6 @@ size_t CGenomeIO::FileSize()
 
 	if (!writing)
 	{
-/*		if (is_gzipped)
-		{
-			while (fill_buffer())
-			{
-				s += buffer_filled;
-				buffer_pos = buffer_filled;
-			}
-			gzseek(gz_in, 0, SEEK_SET);
-		}
-		else
-		{
-			fseek(in, 0, SEEK_END);
-			s = my_ftell(in);
-			fseek(in, 0, SEEK_SET);
-		}*/
-
 		const size_t loc_buf_size = 1 << 25;
 		char* loc_buf = new char[loc_buf_size];
 		size_t readed;
@@ -256,14 +194,9 @@ bool CGenomeIO::fill_buffer()
 		buffer_filled = 0;
 	}
 
-	size_t to_read = buffer_size - buffer_filled;
+	size_t to_read = read_buffer_size - buffer_filled;
 	size_t readed;
 	
-/*	if (is_gzipped)
-		readed = gzread(gz_in, buffer + buffer_filled, (uint32_t) to_read);
-	else
-		readed = fread(buffer + buffer_filled, 1, to_read, in);*/
-
 	sdf->read((char*) buffer + buffer_filled, to_read, readed);
 	
 	buffer_filled += readed;
@@ -274,7 +207,6 @@ bool CGenomeIO::fill_buffer()
 // *******************************************************************************************
 bool CGenomeIO::read_contig_raw(string& id, contig_t& contig)
 {
-//	if (!in && !gz_in && !sif)
 	if (!sif)
 		return false;
 

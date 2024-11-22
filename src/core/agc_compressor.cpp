@@ -4,17 +4,22 @@
 //
 // Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.1
-// Date   : 2024-03-12
+// Version: 3.2
+// Date   : 2024-11-21
 // *******************************************************************************************
 
 #include <numeric>
 #include <memory>
+#include <set>
+#include <unordered_set>
 #include <filesystem>
-#include "../core/agc_compressor.h"
-#include "../core/agc_decompressor.h"
+#include "agc_compressor.h"
+#include "agc_decompressor.h"
 
 #include <execution>
+#include <future>
+
+#include <chrono>
 
 #ifdef _DEBUG
 #define NO_RADULS
@@ -64,6 +69,12 @@ CAGCCompressor::~CAGCCompressor()
         close_compression(1);
     else if (working_mode == working_mode_t::appending)
         close_compression(1);
+
+    if (zstd_dctx_for_fallback)
+    {
+        ZSTD_freeDCtx(zstd_dctx_for_fallback);
+        zstd_dctx_for_fallback = nullptr;
+    }
 }
 
 // *******************************************************************************************
@@ -369,6 +380,51 @@ void CAGCCompressor::appending_init()
 }
 
 // *******************************************************************************************
+void CAGCCompressor::add_fallback_kmers(vector<uint64_t>::iterator first, vector<uint64_t>::iterator last)
+{
+    lock_guard<mutex> lck(mtx_fallback_map);
+
+    vector<pair<uint64_t, uint64_t>> empty_vec;
+
+    for (auto p = first; p != last; ++p)
+        if(fallback_filter(*p))
+            map_fallback_minimizers.emplace(*p, empty_vec);
+}
+
+// *******************************************************************************************
+void CAGCCompressor::add_fallback_mapping(uint64_t splitter1, uint64_t splitter2, vector<pair<uint64_t, bool>>& cand_fallback_kmers)
+{
+    lock_guard<mutex> lck(mtx_fallback_map);
+
+    pair<uint64_t, uint64_t> sp_pair_dir{ splitter1, splitter2 };
+    pair<uint64_t, uint64_t> sp_pair_rc{ splitter2, splitter1 };
+
+    for (auto x : cand_fallback_kmers)
+    {
+        auto& mfm_kd = map_fallback_minimizers[x.first];
+        auto& to_add = x.second ? sp_pair_dir : sp_pair_rc;
+
+        if (count(mfm_kd.begin(), mfm_kd.end(), to_add) == 0)
+            mfm_kd.emplace_back(to_add);
+    }
+}
+
+// *******************************************************************************************
+void CAGCCompressor::add_fallback_mapping(uint64_t splitter1, uint64_t splitter2, uint64_t kmer, bool is_dir_oriented)
+{
+//    lock_guard<mutex> lck(mtx_fallback_map);
+
+    pair<uint64_t, uint64_t> sp_pair_dir{ splitter1, splitter2 };
+    pair<uint64_t, uint64_t> sp_pair_rc{ splitter2, splitter1 };
+
+    auto& mfm_kd = map_fallback_minimizers[kmer];
+    auto& to_add = is_dir_oriented ? sp_pair_dir : sp_pair_rc;
+
+    if (count(mfm_kd.begin(), mfm_kd.end(), to_add) == 0)
+        mfm_kd.emplace_back(to_add);
+}
+
+// *******************************************************************************************
 bool CAGCCompressor::determine_splitters(const string& reference_file_name, const size_t segment_size, const uint32_t no_threads)
 {
     CGenomeIO gio;
@@ -445,6 +501,8 @@ bool CAGCCompressor::determine_splitters(const string& reference_file_name, cons
     auto v_begin = v_candidate_kmers.begin() + v_candidate_kmers_offset;
     auto v_end = v_candidate_kmers.end();
 
+    add_fallback_kmers(v_begin, v_end);
+
     gio.Close();
     
     if (!gio.Open(reference_file_name, false))
@@ -458,6 +516,8 @@ bool CAGCCompressor::determine_splitters(const string& reference_file_name, cons
     pq_contigs_raw = make_unique<CBoundedPQueue<contig_t>>(1, 4ull << 30);
 
     vv_splitters.resize(no_threads);
+    vv_fallback_minimizers.resize(no_threads);
+
     start_splitter_finding_threads(v_threads, no_threads, v_begin, v_end, vv_splitters);
 
     while (gio.ReadContigRaw(id, contig))
@@ -563,6 +623,8 @@ bool CAGCCompressor::count_kmers(vector<pair<string, vector<uint8_t>>>& v_contig
 #endif
 
     remove_non_singletons(v_candidate_kmers, v_duplicated_kmers, v_candidate_kmers_offset);
+
+    add_fallback_kmers(v_candidate_kmers.begin() + v_candidate_kmers_offset, v_candidate_kmers.end());
 
     if (verbosity > 1 && is_app_mode)
         cerr << "No. of singletons: " << v_candidate_kmers.size() - v_candidate_kmers_offset << endl;
@@ -697,12 +759,17 @@ void CAGCCompressor::start_kmer_collecting_threads(vector<thread> &v_threads, co
 }
 
 // *******************************************************************************************
-void CAGCCompressor::find_splitters_in_contig(contig_t& ctg, const vector<uint64_t>::iterator v_begin, const vector<uint64_t>::iterator v_end, vector<uint64_t>& v_splitters)
+void CAGCCompressor::find_splitters_in_contig(contig_t& ctg, const vector<uint64_t>::iterator v_begin, const vector<uint64_t>::iterator v_end, vector<uint64_t>& v_splitters, vector<array<uint64_t, 4>> &v_fallbacks)
 {
     // Initialization to large value to add 1st candidate k-mer
     uint64_t current_len = segment_size;
     vector<uint64_t> v_recent_kmers;
     CKmer kmer(kmer_length, kmer_mode_t::canonical);
+
+    uint64_t prev_splitter = ~0ull;
+    vector<pair<uint64_t, bool>> fallback_kmers_in_segment;
+
+    MurMur64Hash mmh;
 
     kmer.Reset();
 
@@ -718,6 +785,9 @@ void CAGCCompressor::find_splitters_in_contig(contig_t& ctg, const vector<uint64
             {
                 v_recent_kmers.emplace_back(kmer.data());
 
+                if (fallback_filter(kmer.data()) && kmer.data_dir() != kmer.data_rc())           // for symmetric kmers orientation in contig is unclear
+                    fallback_kmers_in_segment.emplace_back(kmer.data(), kmer.is_dir_oriented());
+
                 if (current_len >= segment_size)
                 {
                     uint64_t d = kmer.data();
@@ -725,6 +795,13 @@ void CAGCCompressor::find_splitters_in_contig(contig_t& ctg, const vector<uint64
                     if (binary_search(v_begin, v_end, d))
                     {
                         v_splitters.emplace_back(d);
+
+                        for (auto& x : fallback_kmers_in_segment)
+                            v_fallbacks.emplace_back(array<uint64_t, 4>{prev_splitter, d, x.first, (uint64_t)x.second});
+
+                        fallback_kmers_in_segment.clear();
+                        prev_splitter = d;
+
                         current_len = 0;
                         kmer.Reset();
                         v_recent_kmers.clear();
@@ -741,6 +818,8 @@ void CAGCCompressor::find_splitters_in_contig(contig_t& ctg, const vector<uint64
         if (binary_search(v_begin, v_end, *p))
         {
             v_splitters.emplace_back(*p);
+            for (auto& x : fallback_kmers_in_segment)
+                v_fallbacks.emplace_back(array<uint64_t, 4>{prev_splitter, * p, x.first, x.second});
             break;
         }
 }
@@ -764,6 +843,7 @@ void CAGCCompressor::build_candidate_kmers_from_archive(const uint32_t n_t)
     count_kmers(v_contig_data, n_t);
 
     vv_splitters.resize(n_t);
+    vv_fallback_minimizers.resize(n_t);
 }
 
 // *******************************************************************************************
@@ -778,18 +858,21 @@ void CAGCCompressor::start_splitter_finding_threads(vector<thread>& v_threads, c
 
         uint32_t thread_id = i;
 
-        while (!pq_contigs_raw->IsCompleted())
+        while (true)
         {
             contig_t task;
 
-            if (!pq_contigs_raw->PopLarge(task))
+            auto q_res = pq_contigs_raw->PopLarge(task);
+
+            if (q_res == CBoundedPQueue<contig_t>::result_t::empty)
                 continue;
+            else if (q_res == CBoundedPQueue<contig_t>::result_t::completed)
+                break;
 
             preprocess_raw_contig(task);
 
-            find_splitters_in_contig(task, v_begin, v_end, v_splitters[thread_id]);
+            find_splitters_in_contig(task, v_begin, v_end, v_splitters[thread_id], vv_fallback_minimizers[thread_id]);
         }
-
         });
 }
 
@@ -871,13 +954,11 @@ void CAGCCompressor::preprocess_raw_contig(contig_t& ctg)
 void CAGCCompressor::register_segments(uint32_t n_t)
 {
     buffered_seg_part.sort_known(n_t);          
+
     uint32_t no_new = buffered_seg_part.process_new();
 
     for (uint32_t i = 0; i < no_new; ++i)
-    {
-        out_archive->RegisterStream(ss_ref_name(archive_version, no_segments + i));
-        out_archive->RegisterStream(ss_delta_name(archive_version, no_segments + i));
-    }
+        out_archive->RegisterStreams(ss_ref_name(archive_version, no_segments + i), ss_delta_name(archive_version, no_segments + i));
 
     no_segments += no_new;
 
@@ -900,6 +981,12 @@ void CAGCCompressor::store_segments(ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx)
     uint64_t kmer1;
     uint64_t kmer2;
 
+    const size_t max_buff_size = 32;
+
+    vector<segments_to_place_t> buffered_coll_insertions;
+
+    int no_parts = buffered_seg_part.get_no_parts();
+
     while (true)
     {
         int block_group_id = buffered_seg_part.get_vec_id();
@@ -908,13 +995,11 @@ void CAGCCompressor::store_segments(ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx)
         if (block_group_id < 0)
             break;
 
-        for(int group_id = block_group_id; group_id > block_group_id - 10; --group_id)
-            if(!buffered_seg_part.is_empty_part(group_id))
+        for (int group_id = block_group_id; group_id > block_group_id - CBufferedSegPart::part_id_step; --group_id)
+        {
+            if (!buffered_seg_part.is_empty_part(group_id))
                 while (buffered_seg_part.get_part(group_id, kmer1, kmer2, sample_name, contig_name, seg_data, is_rev_comp, seg_part_no))
                 {
-/*                    if (contig_name == "cluster3_contig_100")
-                        cout << "!";*/
-
                     if (v_segments[group_id] == nullptr)
                     {
                         v_segments[group_id] = make_shared<CSegment>(ss_base(archive_version, group_id), nullptr, out_archive, pack_cardinality, min_match_len, concatenated_genomes, archive_version);
@@ -949,9 +1034,58 @@ void CAGCCompressor::store_segments(ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx)
                     else
                         in_group_id = v_segments[group_id]->add(seg_data, zstd_cctx, zstd_dctx);
 
-                    collection_desc->add_segment_placed(sample_name, contig_name, seg_part_no, group_id, in_group_id, is_rev_comp, (uint32_t)seg_data.size());
+                    //                    collection_desc->add_segment_placed(sample_name, contig_name, seg_part_no, group_id, in_group_id, is_rev_comp, (uint32_t)seg_data.size());
+                    if (buffered_coll_insertions.size() == max_buff_size)
+                    {
+                        collection_desc->add_segments_placed(buffered_coll_insertions);
+                        buffered_coll_insertions.clear();
+                    }
+
+                    buffered_coll_insertions.emplace_back(sample_name, contig_name, seg_part_no, group_id, in_group_id, is_rev_comp, (uint32_t)seg_data.size());
                 }
+        }
     }
+
+    collection_desc->add_segments_placed(buffered_coll_insertions);
+}
+
+// *******************************************************************************************
+void CAGCCompressor::prepare_compressing_stuctures(const uint32_t n_t)
+{
+    v_cctx.clear();
+    v_cctx.reserve(n_t);
+    v_dctx.clear();
+    v_dctx.reserve(n_t);
+
+    for (uint32_t i = 0; i < n_t; ++i)
+    {
+        v_cctx.emplace_back(ZSTD_createCCtx());
+        v_dctx.emplace_back(ZSTD_createDCtx());
+    }
+}
+
+// *******************************************************************************************
+void CAGCCompressor::release_compressing_stuctures()
+{
+    for (auto x : v_cctx)
+        ZSTD_freeCCtx(x);
+    for (auto x : v_dctx)
+        ZSTD_freeDCtx(x);
+
+    v_cctx.clear();
+    v_dctx.clear();
+}
+
+// *******************************************************************************************
+void CAGCCompressor::compressing_stage1_job(uint32_t thread_id, uint32_t n_t)
+{
+
+}
+
+// *******************************************************************************************
+void CAGCCompressor::compressing_stage2_job(uint32_t thread_id, uint32_t n_t)
+{
+
 }
 
 // *******************************************************************************************
@@ -965,15 +1099,17 @@ void CAGCCompressor::start_compressing_threads(vector<thread>& v_threads, my_bar
         v_threads.emplace_back([&, i, n_t]() {
             auto zstd_cctx = ZSTD_createCCtx();
             auto zstd_dctx = ZSTD_createDCtx();
-
             uint32_t thread_id = i;
 
-            while (!pq_contigs_desc_working->IsCompleted())
+            while(true)
             {
                 task_t task;
 
-                if (!pq_contigs_desc_working->PopLarge(task))
+                auto q_res = pq_contigs_desc_working->PopLarge(task);
+                if (q_res == CBoundedPQueue<task_t>::result_t::empty)
                     continue;
+                else if (q_res == CBoundedPQueue<task_t>::result_t::completed)
+                    break;
 
                 if (get<0>(task) == contig_processing_stage_t::registration)
                 {
@@ -981,6 +1117,16 @@ void CAGCCompressor::start_compressing_threads(vector<thread>& v_threads, my_bar
                     bar.arrive_and_wait();
                     if (thread_id == 0)
                         register_segments(n_t);
+
+//                    if((n_t == 1 && thread_id == 0) || (thread_id == 1))
+                    if(thread_id == 0)
+                        for (auto& v_fallback_minimizers : vv_fallback_minimizers)
+                        {
+                            for (auto& x : v_fallback_minimizers)
+                                add_fallback_mapping(x[0], x[1], x[2], (bool)x[3]);
+                            v_fallback_minimizers.clear();
+                        }
+
                     bar.arrive_and_wait();
 
                     store_segments(zstd_cctx, zstd_dctx);
@@ -1041,11 +1187,11 @@ void CAGCCompressor::start_compressing_threads(vector<thread>& v_threads, my_bar
                 if (get<0>(task) == contig_processing_stage_t::new_splitters)
                 {
                     bar.arrive_and_wait();
-                    if (thread_id == 0)
-                    {
+
+                    auto bloom_insert = [&] {
                         // Add new splitters
-                        for(auto &v : vv_splitters)
-                        { 
+                        for (auto& v : vv_splitters)
+                        {
                             for (auto& x : v)
                             {
                                 hs_splitters.insert_fast(x);
@@ -1060,19 +1206,29 @@ void CAGCCompressor::start_compressing_threads(vector<thread>& v_threads, my_bar
                             bloom_splitters.resize((uint64_t)(hs_splitters.size() / 0.25));
                             bloom_splitters.insert(hs_splitters.begin(), hs_splitters.end());
                         }
+                        };
+
+                    if (thread_id == 0)
+                    {
+                        if (n_t == 1)
+                            bloom_insert();
 
                         for (auto& x : v_raw_contigs)
                         {
                             auto cost = get<2>(x).size();
-                            pq_contigs_desc_aux->Emplace(make_tuple(contig_processing_stage_t::hard_contigs, get<0>(x), get<1>(x), move(get<2>(x))), 1, cost);
+                            // No other thread operates at the moment
+                            pq_contigs_desc_aux->EmplaceNoLock(make_tuple(contig_processing_stage_t::hard_contigs, get<0>(x), get<1>(x), move(get<2>(x))), 1, cost);
                         }
 
                         v_raw_contigs.clear();
 
-                        for(uint32_t i = 0; i < n_t; ++i)
-                            pq_contigs_desc_aux->Emplace(make_tuple(contig_processing_stage_t::registration, "", "", contig_t()), 0, 0);
+                        pq_contigs_desc_aux->EmplaceManyNoCost(make_tuple(contig_processing_stage_t::registration, "", "", contig_t()), 0, n_t);
 
                         pq_contigs_desc_working = pq_contigs_desc_aux;
+                    }
+                    else if (thread_id == 1)
+                    {
+                        bloom_insert();
                     }
 
                     bar.arrive_and_wait();
@@ -1087,18 +1243,22 @@ void CAGCCompressor::start_compressing_threads(vector<thread>& v_threads, my_bar
 
                 size_t ctg_size = get<3>(task).size();
 
-                if (compress_contig(get<0>(task), get<1>(task), get<2>(task), get<3>(task), zstd_cctx, zstd_dctx, thread_id))
+                if (compress_contig(get<0>(task), get<1>(task), get<2>(task), get<3>(task), zstd_cctx, zstd_dctx, thread_id, bar))
                 {
-                    processed_bases += ctg_size;
+                    auto old_pb = processed_bases.fetch_add(ctg_size);
+                    auto new_pb = old_pb + ctg_size;
 
-                    if (verbosity > 0 && is_app_mode)
+                    if (verbosity > 0 && is_app_mode && old_pb / 10'000'000 != new_pb / 10'000'000)
+                    {
                         cerr << "Compressed: " + to_string(processed_bases / 1'000'000) + " Mb\r";
-                    fflush(stdout);
+                        fflush(stdout);
+                    }
                 }
                 else
                 {
                     lock_guard<mutex> lck(mtx_raw_contigs);
                     v_raw_contigs.emplace_back(get<1>(task), get<2>(task), move(get<3>(task)));
+//                    v_raw_contigs.emplace_back(get<1>(task), get<2>(task), get<3>(task));
                 }
 
                 get<3>(task).clear();
@@ -1113,7 +1273,7 @@ void CAGCCompressor::start_compressing_threads(vector<thread>& v_threads, my_bar
 
 // *******************************************************************************************
 pair_segment_desc_t CAGCCompressor::add_segment(const string& sample_name, const string& contig_name, uint32_t seg_part_no,
-    contig_t segment, CKmer kmer_front, CKmer kmer_back, ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx)
+    contig_t &&segment, CKmer kmer_front, CKmer kmer_back, ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx, uint32_t thread_id, my_barrier& bar)
 {
     pair<uint64_t, uint64_t> pk, pk2(~0ull, ~0ull);
     contig_t segment_rc;
@@ -1127,7 +1287,17 @@ pair_segment_desc_t CAGCCompressor::add_segment(const string& sample_name, const
     {
         // No terminal splitters present
 
-        pk = make_pair(~0ull, ~0ull);
+        if (fallback_filter)       // Try fallback minimizers procedure
+        {
+//            tie(pk, store_rc) = find_cand_segment_using_fallback_minimizers(segment, 2);
+            tie(pk, store_rc) = find_cand_segment_using_fallback_minimizers(segment, 1);
+//            tie(pk, store_rc) = find_cand_segment_using_fallback_minimizers(segment, (uint64_t) (segment.size() * fallback_frac * 0.2));
+
+            if(pk != pk_empty && store_rc)
+                reverse_complement_copy(segment, segment_rc);
+        }
+        else
+            pk = pk_empty;
     }
     else if (kmer_front.is_full() && kmer_back.is_full())
     {
@@ -1147,7 +1317,22 @@ pair_segment_desc_t CAGCCompressor::add_segment(const string& sample_name, const
         CKmer kmer = kmer_front;
         reverse_complement_copy(segment, segment_rc);
 
-        tie(pk, store_rc) = find_cand_segment_with_one_splitter(kmer, segment, segment_rc, zstd_dctx);
+        tie(pk, store_rc) = find_cand_segment_with_one_splitter(kmer, segment, segment_rc, zstd_dctx, bar);
+
+        if (pk.first == ~0ull || pk.second == ~0ull)
+        {
+            auto pk_alt = pk;
+            bool store_rc_alt = false;
+
+            tie(pk_alt, store_rc_alt) = find_cand_segment_using_fallback_minimizers(segment, 5);
+//            tie(pk_alt, store_rc_alt) = find_cand_segment_using_fallback_minimizers(segment, (uint64_t)(segment.size() * fallback_frac * 0.1));
+
+            if (pk_alt != pk_empty)
+            {
+                pk = pk_alt;
+                store_rc = store_rc_alt;
+            }
+        }
     }
     else if (kmer_back.is_full())
     {
@@ -1156,8 +1341,23 @@ pair_segment_desc_t CAGCCompressor::add_segment(const string& sample_name, const
         reverse_complement_copy(segment, segment_rc);
         bool store_dir;
 
-        tie(pk, store_dir) = find_cand_segment_with_one_splitter(kmer, segment_rc, segment, zstd_dctx);
+        tie(pk, store_dir) = find_cand_segment_with_one_splitter(kmer, segment_rc, segment, zstd_dctx, bar);
         store_rc = !store_dir;
+
+        if (pk.first == ~0ull || pk.second == ~0ull)
+        {
+            auto pk_alt = pk;
+            bool store_dir_alt = false;
+
+            tie(pk_alt, store_dir_alt) = find_cand_segment_using_fallback_minimizers(segment_rc, 5);
+//            tie(pk_alt, store_dir_alt) = find_cand_segment_using_fallback_minimizers(segment_rc, (uint64_t)(segment.size() * fallback_frac * 0.1));
+
+            if (pk_alt != pk_empty)
+            {
+                pk = pk_alt;
+                store_rc = !store_dir_alt;
+            }
+        }
     }
 
     auto p = map_segments.find(pk);
@@ -1190,7 +1390,7 @@ pair_segment_desc_t CAGCCompressor::add_segment(const string& sample_name, const
                 kmer2.swap_dir_rc();
             }
 
-            auto split_match = find_cand_segment_with_missing_middle_splitter(kmer1, kmer2, use_rc ? segment_rc : segment, use_rc ? segment : segment_rc, zstd_dctx);
+            auto split_match = find_cand_segment_with_missing_middle_splitter(kmer1, kmer2, use_rc ? segment_rc : segment, use_rc ? segment : segment_rc, zstd_dctx, bar);
 
             if (split_match.first != ~0ull)
             {
@@ -1257,7 +1457,26 @@ pair_segment_desc_t CAGCCompressor::add_segment(const string& sample_name, const
 
         p = map_segments.find(pk);
     }
-    
+        
+    if (p == map_segments.end() && fallback_filter)       // Try fallback minimizers procedure
+    {
+        pair<uint64_t, uint64_t> pk_fb;
+        bool store_rc_fb;
+
+        tie(pk_fb, store_rc_fb) = find_cand_segment_using_fallback_minimizers(segment, 2);
+//        tie(pk_fb, store_rc_fb) = find_cand_segment_using_fallback_minimizers(segment, (uint64_t)(segment.size() * fallback_frac * 0.05));
+
+        if (pk_fb != pk_empty)
+        {
+            pk = pk_fb;
+            store_rc = store_rc_fb;
+            p = map_segments.find(pk);
+
+            if (store_rc)
+                reverse_complement_copy(segment, segment_rc);
+        }
+    }
+
     uint32_t segment_size = (uint32_t) segment.size();
     uint32_t segment2_size = (uint32_t) segment2.size();
 
@@ -1280,14 +1499,17 @@ pair_segment_desc_t CAGCCompressor::add_segment(const string& sample_name, const
 }
 
 // *******************************************************************************************
-pair<uint64_t, uint32_t> CAGCCompressor::find_cand_segment_with_missing_middle_splitter(CKmer kmer_front, CKmer kmer_back, contig_t& segment_dir, contig_t& segment_rc, ZSTD_DCtx* zstd_dctx)
+pair<uint64_t, uint32_t> CAGCCompressor::find_cand_segment_with_missing_middle_splitter(CKmer kmer_front, CKmer kmer_back, contig_t& segment_dir, contig_t& segment_rc, ZSTD_DCtx* zstd_dctx, my_barrier& bar)
 {
-    vector<uint64_t> shared_splitters;
-
-    shared_splitters.resize(map_segments_terminators[kmer_front.data()].size());
-
     auto p_front = map_segments_terminators.find(kmer_front.data());
     auto p_back = map_segments_terminators.find(kmer_back.data());
+
+    if (p_front == map_segments_terminators.end() || p_back == map_segments_terminators.end())
+        return make_pair(~0ull, 0);
+
+    vector<uint64_t> shared_splitters;
+
+    shared_splitters.resize(min(p_front->second.size(), p_back->second.size()));
 
     auto p_shared = set_intersection(
         p_front->second.begin(), p_front->second.end(),
@@ -1304,33 +1526,79 @@ pair<uint64_t, uint32_t> CAGCCompressor::find_cand_segment_with_missing_middle_s
 
     vector<uint32_t> v_costs1, v_costs2;
 
+//    v_costs1.reserve(segment_dir.size());
+//    v_costs2.reserve(segment_dir.size());
+
     auto segment_id1 = map_segments[minmax(kmer_front.data(), middle)];
     auto segment_id2 = map_segments[minmax(middle, kmer_back.data())];
-
 
     auto seg1 = v_segments[segment_id1];
     auto seg2 = v_segments[segment_id2];
     
-    if (kmer_front.data() < middle)
-        seg1->get_coding_cost(segment_dir, v_costs1, true, zstd_dctx);
+    auto seg1_run = [&] {
+        if (kmer_front.data() < middle)
+            seg1->get_coding_cost(segment_dir, v_costs1, true, zstd_dctx);
+        else
+        {
+            seg1->get_coding_cost(segment_rc, v_costs1, false, zstd_dctx);
+            reverse(v_costs1.begin(), v_costs1.end());
+        }
+
+        partial_sum(v_costs1.begin(), v_costs1.end(), v_costs1.begin());
+        };
+
+    auto seg2_run = [&](ZSTD_DCtx *loc_zstd_dctx) {
+/*        if (middle < kmer_back.data())
+        {
+            seg2->get_coding_cost(segment_dir, v_costs2, false, loc_zstd_dctx);
+            reverse(v_costs2.begin(), v_costs2.end());
+        }
+        else
+            seg2->get_coding_cost(segment_rc, v_costs2, true, loc_zstd_dctx);
+
+        partial_sum(v_costs2.begin(), v_costs2.end(), v_costs2.begin());
+
+        reverse(v_costs2.begin(), v_costs2.end());*/
+
+        if (middle < kmer_back.data())
+        {
+            seg2->get_coding_cost(segment_dir, v_costs2, false, nullptr);
+            partial_sum(v_costs2.rbegin(), v_costs2.rend(), v_costs2.rbegin());
+        }
+        else
+        {
+            seg2->get_coding_cost(segment_rc, v_costs2, true, nullptr);
+            partial_sum(v_costs2.begin(), v_costs2.end(), v_costs2.begin());
+            reverse(v_costs2.begin(), v_costs2.end());
+        }
+
+        };
+
+#ifndef USE_INCREMENTING_BARRIERS
+    seg1_run();
+    seg2_run(zstd_dctx);
+#else
+    bool run_seg2_in_separate_thread = true;
+
+    if (segment_id1 == segment_id2)
+        run_seg2_in_separate_thread = false;
+    else if (!bar.try_increment())
+        run_seg2_in_separate_thread = false;
+        
+    if(run_seg2_in_separate_thread)
+    {
+        future<void> fut = async([&] {seg2_run(nullptr); });
+        seg1_run();
+
+        fut.wait();
+        bar.decrement();
+    }
     else
     {
-        seg1->get_coding_cost(segment_rc, v_costs1, false, zstd_dctx);
-        reverse(v_costs1.begin(), v_costs1.end());
+        seg1_run();
+        seg2_run(zstd_dctx);
     }
-
-    if (middle < kmer_back.data())
-    {
-        seg2->get_coding_cost(segment_dir, v_costs2, false, zstd_dctx);
-        reverse(v_costs2.begin(), v_costs2.end());
-    }
-    else
-        seg2->get_coding_cost(segment_rc, v_costs2, true, zstd_dctx);
-
-    partial_sum(v_costs1.begin(), v_costs1.end(), v_costs1.begin());
-    partial_sum(v_costs2.begin(), v_costs2.end(), v_costs2.begin());
-
-    reverse(v_costs2.begin(), v_costs2.end());
+#endif
 
     uint32_t best_sum = ~0u;
     uint32_t best_pos = 0;
@@ -1354,14 +1622,14 @@ pair<uint64_t, uint32_t> CAGCCompressor::find_cand_segment_with_missing_middle_s
 }
 
 // *******************************************************************************************
-pair<pair<uint64_t, uint64_t>, bool> CAGCCompressor::find_cand_segment_with_one_splitter(CKmer kmer, contig_t& segment_dir, contig_t& segment_rc, ZSTD_DCtx* zstd_dctx)
+pair<pair<uint64_t, uint64_t>, bool> CAGCCompressor::find_cand_segment_with_one_splitter(CKmer kmer, contig_t& segment_dir, contig_t& segment_rc, ZSTD_DCtx* zstd_dctx, my_barrier& bar)
 {
     const pair<uint64_t, uint64_t> empty_pk(~0ull, ~0ull);
     pair<uint64_t, uint64_t> best_pk(~0ull, ~0ull);
     uint64_t best_estim_size = segment_dir.size() < 16 ? segment_dir.size() : segment_dir.size() - 16u;
     bool is_best_rc = false;
 
-    vector<tuple<uint64_t, uint64_t, bool, shared_ptr<CSegment>>> v_candidates;
+    vector<tuple<uint64_t, uint64_t, bool, shared_ptr<CSegment>, std::array<uint8_t, 24+64+56>>> v_candidates;        // filled with array to avoid false sharing
 
     auto p = map_segments_terminators.find(kmer.data());
     if (p == map_segments_terminators.end())
@@ -1404,7 +1672,7 @@ pair<pair<uint64_t, uint64_t>, bool> CAGCCompressor::find_cand_segment_with_one_
         get<3>(ck) = v_segments[map_segments[cand_pk]];
     }
 
-    int64_t segment_size = (int64_t) segment_dir.size();
+    int64_t segment_size = (int64_t)segment_dir.size();
     stable_sort(v_candidates.begin(), v_candidates.end(), [segment_size](const auto& x, const auto& y) {
         int64_t x_size = get<3>(x)->get_ref_size();
         int64_t y_size = get<3>(y)->get_ref_size();
@@ -1416,12 +1684,23 @@ pair<pair<uint64_t, uint64_t>, bool> CAGCCompressor::find_cand_segment_with_one_
         return x_size < y_size;
         });
 
+    {
+        set<shared_ptr<CSegment>> test_set;
+
+        for (auto& cand : v_candidates)
+            test_set.emplace(get<3>(cand));
+
+        if (test_set.size() != v_candidates.size())
+            cout << "!!!\n";
+    }
+
+#ifndef USE_INCREMENTING_BARRIERS
     for (auto& candidate : v_candidates)
     {
-        auto estim_size = get<3>(candidate)->estimate(get<2>(candidate) ? segment_rc : segment_dir, (uint32_t) best_estim_size, zstd_dctx);
+        auto estim_size = get<3>(candidate)->estimate(get<2>(candidate) ? segment_rc : segment_dir, (uint32_t)best_estim_size, zstd_dctx);
         auto cand_pk = make_pair(get<0>(candidate), get<1>(candidate));
 
-        if (estim_size < best_estim_size || 
+        if (estim_size < best_estim_size ||
             (estim_size == best_estim_size && cand_pk < best_pk) ||
             (estim_size == best_estim_size && cand_pk == best_pk && !get<2>(candidate)))
         {
@@ -1430,6 +1709,84 @@ pair<pair<uint64_t, uint64_t>, bool> CAGCCompressor::find_cand_segment_with_one_
             is_best_rc = get<2>(candidate);
         }
     }
+#else
+
+    int no_extra_threads = 0;
+
+//    if (v_candidates.size() > 1)
+//        no_extra_threads = bar.try_increment_max((int32_t)v_candidates.size() - 1);
+    if (v_candidates.size() > 2)
+        no_extra_threads = bar.try_increment_max((int32_t)(v_candidates.size() - 1) / 2);
+
+    vector<uint64_t> v_estim_size(v_candidates.size(), best_estim_size);
+    vector<pair<uint64_t, uint64_t>> v_cand_pk(v_candidates.size(), best_pk);
+
+    if (no_extra_threads == 0)
+    {
+        for (size_t i = 0; i < v_candidates.size(); ++i)
+        {
+            v_estim_size[i] = get<3>(v_candidates[i])->estimate(get<2>(v_candidates[i]) ? segment_rc : segment_dir, (uint32_t)best_estim_size, zstd_dctx);
+
+            if (v_estim_size[i] < best_estim_size)
+                best_estim_size = v_estim_size[i];
+        }
+    }
+    else
+    {
+        atomic<size_t> cand_idx = 0;
+        atomic<uint64_t> a_best_estim_size = best_estim_size;
+
+        auto v_candidates_begin = v_candidates.begin();
+        auto n_candidates = v_candidates.size();
+        auto v_estim_size_begin = v_estim_size.begin();
+
+        auto job = [v_candidates_begin, v_estim_size_begin, &cand_idx, n_candidates, &a_best_estim_size, &segment_rc, &segment_dir, &bar] {
+            while (true)
+            {
+                auto j = cand_idx.fetch_add(1);
+                if (j >= n_candidates)
+                    break;
+
+                auto p_candidates = v_candidates_begin + j;
+                auto p_estim_size = v_estim_size_begin + j;
+                auto cur_estim_size = get<3>(*p_candidates)->estimate(get<2>(*p_candidates) ? segment_rc : segment_dir, (uint32_t)a_best_estim_size.load(), nullptr);
+                
+                *p_estim_size = cur_estim_size;
+
+                uint64_t cur_best_estim_size = a_best_estim_size.load();
+
+                while(cur_best_estim_size > cur_estim_size)
+                    if (a_best_estim_size.compare_exchange_strong(cur_best_estim_size, cur_estim_size))      // Can fail if some other thread also updates at the same time
+                        break;
+            };
+        };
+
+        vector<future<void>> v_fut;
+
+        for (size_t i = 0; i < no_extra_threads; ++i)
+            v_fut.emplace_back(async(job));
+        job();
+
+        for (auto& f : v_fut)
+            f.wait();
+        bar.decrement(no_extra_threads);
+    }
+        
+    for (size_t i = 0; i < v_candidates.size(); ++i)
+    {
+        auto& candidate = v_candidates[i];
+        auto cand_pk = make_pair(get<0>(candidate), get<1>(candidate));
+
+        if (v_estim_size[i] < best_estim_size ||
+            (v_estim_size[i] == best_estim_size && cand_pk < best_pk) ||
+            (v_estim_size[i] == best_estim_size && cand_pk == best_pk && !get<2>(candidate)))
+        {
+            best_estim_size = v_estim_size[i];
+            best_pk = cand_pk;
+            is_best_rc = get<2>(candidate);
+        }
+    }
+#endif
 
     if (best_pk == empty_pk)
     {
@@ -1445,9 +1802,195 @@ pair<pair<uint64_t, uint64_t>, bool> CAGCCompressor::find_cand_segment_with_one_
     return make_pair(best_pk, is_best_rc);
 }
 
+// #define DEBUG_CANDIDATES
+// *******************************************************************************************
+pair<pair<uint64_t, uint64_t>, bool> CAGCCompressor::find_cand_segment_using_fallback_minimizers(contig_t& segment, uint64_t max_val)
+{
+    const size_t max_num_to_estimate = 10;
+    const bool short_segments = segment_size <= 10000;
+
+    lock_guard<mutex> lck(mtx_fallback_map);            
+        
+    if (!zstd_dctx_for_fallback)
+        zstd_dctx_for_fallback = ZSTD_createDCtx();
+
+    CKmer kmer(kmer_length, kmer_mode_t::canonical);
+
+    map<pair<uint64_t, uint64_t>, vector<uint64_t>> cand_seg_counts;
+
+    kmer.Reset();
+
+    for (auto x : segment)
+    {
+        if (x > 3)
+            kmer.Reset();
+        else
+        {
+            kmer.insert(x);
+
+            if (kmer.is_full() && fallback_filter(kmer.data()))
+            {
+                auto p = map_fallback_minimizers.find(kmer.data());
+
+                if (p != map_fallback_minimizers.end())
+                {
+                    for (auto y : p->second)
+                    {
+                        if (y.first != ~0ull && y.second != ~0ull)           // !!! TODO: consider to relax
+                        {
+                            if (!kmer.is_dir_oriented())
+                                swap(y.first, y.second);
+                            cand_seg_counts[y].emplace_back(kmer.data());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    vector<pair<uint64_t, pair<uint64_t, uint64_t>>> pruned_cand_seg_counts;
+
+    for (auto& x : cand_seg_counts)
+    {
+        std::sort(x.second.begin(), x.second.end());
+        size_t x_size = unique(x.second.begin(), x.second.end()) - x.second.begin();
+        if (x_size >= max_val)
+            pruned_cand_seg_counts.emplace_back((uint64_t)x_size, x.first);
+    }
+
+    if (pruned_cand_seg_counts.empty())
+        return make_pair(pk_empty, false);
+
+    if (pruned_cand_seg_counts.size() <= max_num_to_estimate)
+        std::sort(pruned_cand_seg_counts.begin(), pruned_cand_seg_counts.end(), greater<pair<uint64_t, pair<uint64_t, uint64_t>>>());
+    else
+    {
+        std::partial_sort(pruned_cand_seg_counts.begin(), pruned_cand_seg_counts.begin() + max_num_to_estimate, pruned_cand_seg_counts.end(), greater<pair<uint64_t, pair<uint64_t, uint64_t>>>());
+        pruned_cand_seg_counts.resize(max_num_to_estimate);
+    }
+
+    // Avoid trying poor candidates
+    while (pruned_cand_seg_counts.back().first * 2 < pruned_cand_seg_counts.front().first)
+        pruned_cand_seg_counts.pop_back();
+
+    contig_t segment_rc;
+    reverse_complement_copy(segment, segment_rc);
+
+#ifdef DEBUG_CANDIDATES
+    stringstream ss;
+    ss << "**** Segment_size: " << segment.size() << "  cand_seg_counts: " << cand_seg_counts.size() << "\n";
+
+    vector<tuple<int32_t, bool, uint64_t>> cand_evaluation;
+    cand_evaluation.reserve(pruned_cand_seg_counts.size());
+#endif
+
+    pair<uint64_t, uint64_t> best_pair = pk_empty;
+    uint64_t best_es = segment.size();
+    uint64_t best_es_no_items = 0;
+    uint64_t best_no_items = pruned_cand_seg_counts.front().first;
+
+    for (auto& x : pruned_cand_seg_counts)
+    {
+        decltype(map_segments)::iterator p;
+        bool is_seg_rc = x.second.first > x.second.second;
+
+        if(!is_seg_rc)
+            p = map_segments.find(x.second);
+        else
+            p = map_segments.find(make_pair(x.second.second, x.second.first));
+        
+        uint64_t es = 0;
+        int32_t seg_id = -1;
+        
+        if (p != map_segments.end())            // Can fail if the mappings are to a segment from the same sample - it's ok
+        {
+            if (short_segments)                 // Fast decision based on no. of shared k-mers if the segments are short
+            {
+                best_pair = x.second;
+                best_es = 0;
+                break;
+            }
+
+            es = v_segments[p->second]->estimate(is_seg_rc ? segment_rc : segment, best_es, zstd_dctx_for_fallback);
+            seg_id = p->second;
+        }
+
+#ifdef DEBUG_CANDIDATES
+        cand_evaluation.emplace_back(seg_id, is_seg_rc, es);
+#endif
+
+        if (es && es < best_es)
+        {
+            best_es = es;
+            best_pair = x.second;
+            best_es_no_items = x.first;
+        }
+    }
+
+#ifdef DEBUG_CANDIDATES
+    ss << "\tBest es: " << best_es << "\t\tBest es. no. items: " << best_es_no_items << "\t\tBest no. items: " << pruned_cand_seg_counts.front().first << endl;
+
+    for (size_t i = 0; i < cand_evaluation.size(); ++i)
+        ss << "\tSegment id: " << get<0>(cand_evaluation[i]) << " (is rc.: " << get<1>(cand_evaluation[i]) << ")   No items : " << get<0>(pruned_cand_seg_counts[i]) << "\tes : " << get<2>(cand_evaluation[i]) << endl;
+
+    cout << ss.str();
+#endif
+
+    // Decide if it is worth to use the found segment. It could be better to leave it to be a new reference (in adaptive mode)
+    if (adaptive_compression)
+    {
+        if (short_segments)
+        {
+            if(best_es >= segment.size() * 0.9)
+                return make_pair(pk_empty, false);
+        }
+        else
+        {
+            if (best_es >= segment.size() * 0.2)
+                return make_pair(pk_empty, false);
+        }
+    }
+
+    if(best_pair.first <= best_pair.second)
+        return make_pair(best_pair, false);      
+    else
+        return make_pair(make_pair(best_pair.second, best_pair.first), true);
+}
+
+// *******************************************************************************************
+void CAGCCompressor::add_fallback_mapping(uint64_t splitter1, uint64_t splitter2, const contig_t& segment)
+{
+    CKmer kmer(kmer_length, kmer_mode_t::canonical);
+    MurMur64Hash mmh;
+
+    auto splitter_dir = make_pair(splitter1, splitter2);
+    auto splitter_rev = make_pair(splitter2, splitter1);
+
+    kmer.Reset();
+
+    for (auto x : segment)
+    {
+        if (x > 3)
+            kmer.Reset();
+        else
+        {
+            kmer.insert(x);
+
+            if (kmer.is_full() && fallback_filter(kmer.data()))
+            {
+                auto& mfm_kd = map_fallback_minimizers[kmer.data()];
+                auto to_add = kmer.is_dir_oriented() ? splitter_dir : splitter_rev;
+
+                if (count(mfm_kd.begin(), mfm_kd.end(), to_add) == 0)
+                    mfm_kd.emplace_back(to_add);
+            }
+        }
+    }
+}
+
 // *******************************************************************************************
 bool CAGCCompressor::compress_contig(contig_processing_stage_t contig_processing_stage, string sample_name, string id, contig_t& contig, 
-    ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx, uint32_t thread_id)
+    ZSTD_CCtx* zstd_cctx, ZSTD_DCtx* zstd_dctx, uint32_t thread_id, my_barrier& bar)
 {
     CKmer kmer(kmer_length, kmer_mode_t::canonical);
 
@@ -1470,7 +2013,7 @@ bool CAGCCompressor::compress_contig(contig_processing_stage_t contig_processing
                 if (bloom_splitters.check(d) && hs_splitters.check(d))
                 {
                     auto seg_id = add_segment(sample_name, id, seg_part_no,
-                        get_part(contig, split_pos, pos + 1 - split_pos), split_kmer, kmer, zstd_cctx, zstd_dctx);
+                        move(get_part(contig, split_pos, pos + 1 - split_pos)), split_kmer, kmer, zstd_cctx, zstd_dctx, thread_id, bar);
 
                     ++seg_part_no;
 
@@ -1497,7 +2040,7 @@ bool CAGCCompressor::compress_contig(contig_processing_stage_t contig_processing
 
     if (split_pos < contig.size())
         add_segment(sample_name, id, seg_part_no,
-            get_part(contig, split_pos, contig.size() - split_pos), split_kmer, CKmer(kmer_length, kmer_mode_t::canonical), zstd_cctx, zstd_dctx);
+            move(get_part(contig, split_pos, contig.size() - split_pos)), split_kmer, CKmer(kmer_length, kmer_mode_t::canonical), zstd_cctx, zstd_dctx, thread_id, bar);
 
     return true;
 }
@@ -1528,7 +2071,9 @@ void CAGCCompressor::find_new_splitters(contig_t& ctg, uint32_t thread_id)
 
     v_contig_kmers.erase(p_end, v_contig_kmers.end());
 
-    find_splitters_in_contig(ctg, v_contig_kmers.begin(), v_contig_kmers.end(), vv_splitters[thread_id]);
+    add_fallback_kmers(v_contig_kmers.begin(), v_contig_kmers.end());
+
+    find_splitters_in_contig(ctg, v_contig_kmers.begin(), v_contig_kmers.end(), vv_splitters[thread_id], vv_fallback_minimizers[thread_id]);
 }
 
 // *******************************************************************************************
@@ -1640,9 +2185,8 @@ bool CAGCCompressor::AddSampleFiles(vector<pair<string, string>> _v_sample_file_
                     if (++cnt_contigs_in_sample >= max_no_contigs_before_synchronization)
                     {
                         // Send synchronization tokens
-                        for (uint32_t i = 0; i < no_workers; ++i)
-                            pq_contigs_desc->Emplace(make_tuple(
-                                adaptive_compression ? contig_processing_stage_t::new_splitters : contig_processing_stage_t::registration, "", "", contig_t()), sample_priority, 0);
+                        pq_contigs_desc->EmplaceManyNoCost(make_tuple(
+                            adaptive_compression ? contig_processing_stage_t::new_splitters : contig_processing_stage_t::registration, "", "", contig_t()), sample_priority, no_workers);
 
                         cnt_contigs_in_sample = 0;
                         --sample_priority;
@@ -1679,10 +2223,9 @@ bool CAGCCompressor::AddSampleFiles(vector<pair<string, string>> _v_sample_file_
         if (!concatenated_genomes && any_contigs_added)
         {
             // Send synchronization tokens
-            for (uint32_t i = 0; i < no_workers; ++i)
-                pq_contigs_desc->Emplace(make_tuple(
-                    adaptive_compression ? contig_processing_stage_t::new_splitters : contig_processing_stage_t::registration,
-                    "", "", contig_t()), sample_priority, 0);
+            pq_contigs_desc->EmplaceManyNoCost(make_tuple(
+                adaptive_compression ? contig_processing_stage_t::new_splitters : contig_processing_stage_t::registration,
+                "", "", contig_t()), sample_priority, no_workers);
 
             --sample_priority;
         }
@@ -1693,9 +2236,8 @@ bool CAGCCompressor::AddSampleFiles(vector<pair<string, string>> _v_sample_file_
     if (concatenated_genomes)// && ++cnt_contigs_in_sample >= max_no_contigs_before_synchronization)
     {
         // Send synchronization tokens
-        for (uint32_t i = 0; i < no_workers; ++i)
-            pq_contigs_desc->Emplace(make_tuple(
-                adaptive_compression ? contig_processing_stage_t::new_splitters : contig_processing_stage_t::registration, "", "", contig_t()), sample_priority, 0);
+        pq_contigs_desc->EmplaceManyNoCost(make_tuple(
+            adaptive_compression ? contig_processing_stage_t::new_splitters : contig_processing_stage_t::registration, "", "", contig_t()), sample_priority, no_workers);
 
         cnt_contigs_in_sample = 0;
         --sample_priority;
@@ -1724,7 +2266,7 @@ bool CAGCCompressor::AddSampleFiles(vector<pair<string, string>> _v_sample_file_
 
 // *******************************************************************************************
 bool CAGCCompressor::Create(const string& _file_name, const uint32_t _pack_cardinality, const uint32_t _kmer_length, const string& reference_file_name, const uint32_t _segment_size,
-    const uint32_t _min_match_len, const bool _concatenated_genomes, const bool _adaptive_compression, const uint32_t _verbosity, const uint32_t no_threads)
+    const uint32_t _min_match_len, const bool _concatenated_genomes, const bool _adaptive_compression, const uint32_t _verbosity, const uint32_t no_threads, double _fallback_frac)
 {
     if (working_mode != working_mode_t::none)
         return false;
@@ -1736,7 +2278,9 @@ bool CAGCCompressor::Create(const string& _file_name, const uint32_t _pack_cardi
     adaptive_compression = _adaptive_compression;
     segment_size = _segment_size;
     verbosity = _verbosity;
-
+    fallback_frac = _fallback_frac;
+    fallback_filter.reset(fallback_frac);
+    
     if (!determine_splitters(reference_file_name, _segment_size, no_threads))
     {
         working_mode = working_mode_t::none;
@@ -1779,7 +2323,7 @@ bool CAGCCompressor::Create(const string& _file_name, const uint32_t _pack_cardi
 
 // *******************************************************************************************
 bool CAGCCompressor::Append(const string& _in_archive_fn, const string& _out_archive_fn, const uint32_t _verbosity, const bool _prefetch_archive, const bool _concatenated_genomes, const bool _adaptive_compression,
-    const uint32_t no_threads)
+    const uint32_t no_threads, double _fallback_frac)
 {
     if (working_mode != working_mode_t::none)
         return false;
@@ -1789,6 +2333,8 @@ bool CAGCCompressor::Append(const string& _in_archive_fn, const string& _out_arc
     prefetch_archive = _prefetch_archive;
     concatenated_genomes = _concatenated_genomes;
     adaptive_compression = _adaptive_compression;
+    fallback_frac = _fallback_frac;
+    fallback_filter.reset(fallback_frac);
 
     min_match_len = compression_params.min_match_len;
     uint32_t segment_size = compression_params.segment_size;

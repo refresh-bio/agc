@@ -16,3 +16,6 @@
 [submodule "3rd_party/libdeflate"]
 	path = 3rd_party/libdeflate
 	url = https://github.com/refresh-bio-dependencies/libdeflate.git
+[submodule "3rd_party/pybind11"]
+	path = 3rd_party/pybind11
+	url = https://github.com/refresh-bio-dependencies/pybind11.git

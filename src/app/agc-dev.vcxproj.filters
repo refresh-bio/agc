@@ -7,22 +7,7 @@
     <ClCompile Include="application.cpp">
       <Filter>Source files</Filter>
     </ClCompile>
-    <ClCompile Include="..\core\archive.cpp">
-      <Filter>Source files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\core\collection.cpp">
-      <Filter>Source files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\core\agc_basic.cpp">
-      <Filter>Source files</Filter>
-    </ClCompile>
     <ClCompile Include="..\core\genome_io.cpp">
-      <Filter>Source files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\core\lz_diff.cpp">
-      <Filter>Source files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\core\segment.cpp">
       <Filter>Source files</Filter>
     </ClCompile>
     <ClCompile Include="..\core\agc_compressor.cpp">
@@ -31,36 +16,42 @@
     <ClCompile Include="..\core\agc_decompressor.cpp">
       <Filter>Source files</Filter>
     </ClCompile>
-    <ClCompile Include="..\core\agc_decompressor_lib.cpp">
-      <Filter>Source files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\core\collection_v3.cpp">
-      <Filter>Source files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\core\collection_v2.cpp">
-      <Filter>Source files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\core\collection_v1.cpp">
-      <Filter>Source files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\core\utils.cpp">
-      <Filter>Source files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\3rd_party\mimalloc\src\static.c">
       <Filter>Library files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\agc_basic.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\agc_decompressor_lib.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\archive.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\collection.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\collection_v1.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\collection_v2.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\collection_v3.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\lz_diff.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\segment.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\utils.cpp">
+      <Filter>Source files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="application.h">
-      <Filter>Header files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\core\archive.h">
-      <Filter>Header files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\core\collection.h">
-      <Filter>Header files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\core\defs.h">
       <Filter>Header files</Filter>
     </ClInclude>
     <ClInclude Include="..\core\genome_io.h">
@@ -69,22 +60,7 @@
     <ClInclude Include="..\core\hs.h">
       <Filter>Header files</Filter>
     </ClInclude>
-    <ClInclude Include="..\core\io.h">
-      <Filter>Header files</Filter>
-    </ClInclude>
     <ClInclude Include="..\core\kmer.h">
-      <Filter>Header files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\core\lz_diff.h">
-      <Filter>Header files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\core\queue.h">
-      <Filter>Header files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\core\segment.h">
-      <Filter>Header files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\core\utils.h">
       <Filter>Header files</Filter>
     </ClInclude>
     <ClInclude Include="..\core\agc_compressor.h">
@@ -93,23 +69,47 @@
     <ClInclude Include="..\core\agc_decompressor.h">
       <Filter>Header files</Filter>
     </ClInclude>
-    <ClInclude Include="..\core\agc_basic.h">
+    <ClInclude Include="..\core\utils_adv.h">
       <Filter>Header files</Filter>
     </ClInclude>
-    <ClInclude Include="..\core\agc_decompressor_lib.h">
+    <ClInclude Include="..\common\agc_basic.h">
       <Filter>Header files</Filter>
     </ClInclude>
-    <ClInclude Include="..\core\collection_v3.h">
+    <ClInclude Include="..\common\agc_decompressor_lib.h">
       <Filter>Header files</Filter>
     </ClInclude>
-    <ClInclude Include="..\core\collection_v2.h">
+    <ClInclude Include="..\common\archive.h">
       <Filter>Header files</Filter>
     </ClInclude>
-    <ClInclude Include="..\core\collection_v1.h">
+    <ClInclude Include="..\common\collection.h">
       <Filter>Header files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\libs\file_wrapper.h">
-      <Filter>Library files</Filter>
+    <ClInclude Include="..\common\collection_v1.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\collection_v2.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\collection_v3.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\defs.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\io.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\lz_diff.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\queue.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\segment.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\utils.h">
+      <Filter>Header files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

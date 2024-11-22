@@ -23,7 +23,7 @@ jobs:
     runs-on: [linux-self-hosted , agc]
     needs: checkout
     env: 
-      EXE_AGC: ./agc
+      EXE_AGC: ./bin/agc
     steps:           
 #    - name: make (g++ 9)
 #      run: |
@@ -31,15 +31,19 @@ jobs:
 #        make CXX=g++-9 agc
 #        make clean
 #        
-    - name: make (g++ 10)
-      run: |
-        make clean
-        make CXX=g++-10 agc
-        make clean
-        
+#    - name: make (g++ 10)
+#      run: |
+#        make clean
+#        make CXX=g++-10 agc
+#        make clean
+#        
     - name: make (g++ 11)
       run: |
         make CXX=g++-11 agc
+        make clean
+    - name: make (g++ 12)
+      run: |
+        make CXX=g++-12 agc
         make clean
         
     - name: make (default)
@@ -70,7 +74,7 @@ jobs:
         
     - name: camp all together
       run: |
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
         ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN
@@ -78,7 +82,7 @@ jobs:
 
     - name: camp one by one 
       run: |
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
         ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN
@@ -108,7 +112,7 @@ jobs:
         
     - name: camp all together PAR $PARAMS 
       run: |
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
         ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN $PARAMS
@@ -116,7 +120,7 @@ jobs:
 
     - name: camp one by one $PARAMS
       run: |
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
         ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN $ADAPTIVE_APPEND $PARAMS
@@ -142,7 +146,7 @@ jobs:
         
     - name: salmo all together
       run: |
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
         ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN
@@ -151,7 +155,7 @@ jobs:
         
     - name: salmo one by one 
       run: |
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
         ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN $ADAPTIVE_APPEND
@@ -177,7 +181,7 @@ jobs:
         
     - name: salmo all together
       run: |
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
         ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN $PARAMS
@@ -185,7 +189,7 @@ jobs:
 
     - name: salmo one by one
       run: |
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
         ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN $ADAPTIVE_APPEND $PARAMS
@@ -212,7 +216,7 @@ jobs:
         
     - name: covid all together create + getcol
       run: |
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME
         mkdir $OUT_NAME
@@ -226,7 +230,7 @@ jobs:
 
     - name: covid all together create -a + getset
       run: |
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME
         mkdir $OUT_NAME
@@ -237,7 +241,7 @@ jobs:
         do 
           echo $i
           SMPL=`sed " $i q;d" $OUT_NAME/$SET_LIST`
-          echo "./agc getset -l $LINE_LEN $OUT_NAME/$OUT_NAME.agc $SMPL > $OUT_NAME/$SMPL.fa"
+          echo "./bin/agc getset -l $LINE_LEN $OUT_NAME/$OUT_NAME.agc $SMPL > $OUT_NAME/$SMPL.fa"
           $EXE_AGC getset -l $LINE_LEN $OUT_NAME/$OUT_NAME.agc $SMPL > $OUT_NAME/$SMPL.fa
         done
         cd $OUT_NAME
@@ -248,7 +252,7 @@ jobs:
 
     - name: covid all together create -a + append + getset
       run: |
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME
         mkdir $OUT_NAME
@@ -260,7 +264,7 @@ jobs:
         do 
           echo $i
           SMPL=`sed " $i q;d" $OUT_NAME/$SET_LIST`
-          echo "./agc getset -l $LINE_LEN $OUT_NAME/$OUT_NAME-APPEND.agc $SMPL > $OUT_NAME/$SMPL.fa"
+          echo "./bin/agc getset -l $LINE_LEN $OUT_NAME/$OUT_NAME-APPEND.agc $SMPL > $OUT_NAME/$SMPL.fa"
           $EXE_AGC getset -l $LINE_LEN $OUT_NAME/$OUT_NAME-APPEND.agc $SMPL > $OUT_NAME/$SMPL.fa
         done
         cd $OUT_NAME
@@ -291,7 +295,7 @@ jobs:
         
     - name: covid all together create + getcol
       run: |
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME
         mkdir $OUT_NAME
@@ -324,7 +328,7 @@ jobs:
         
     - name: hprc all together
       run: |
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
         ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN
@@ -332,7 +336,7 @@ jobs:
 
     - name: hprc one by one
       run: |
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
         ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN
@@ -359,7 +363,7 @@ jobs:
         
     - name: hprc all together
       run: |
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
         ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN $PARAMS
@@ -367,7 +371,7 @@ jobs:
 
     - name: hprc one by one
       run: |
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
         ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN $ADAPTIVE_APPEND $PARAMS
@@ -391,7 +395,7 @@ jobs:
         
     - name: hgsvc all together
       run: |
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
         ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN
@@ -416,7 +420,7 @@ jobs:
  
     - name: hgsvc one by one
       run: |
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
         ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN

@@ -7,14 +7,14 @@
 //
 // Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.1
-// Date   : 2024-03-12
+// Version: 3.2
+// Date   : 2024-11-21
 // *******************************************************************************************
 
-#include "../core/defs.h"
+#include "../common/defs.h"
 #include <algorithm>
 #include <bitset>
-#include "../core/utils.h"
+#include "../common/utils.h"
 
 enum class kmer_mode_t {direct, rev_comp, canonical};
 

@@ -33,9 +33,9 @@ jobs:
       with:
         submodules: recursive
 
-    - uses: maxim-lobanov/setup-xcode@v1
-      with:
-        xcode-version: latest-stable
+  #  - uses: maxim-lobanov/setup-xcode@v1
+   #   with:
+    #    xcode-version: latest-stable
       #  xcode-version: '14.1-beta'
 
   make-tests:
@@ -46,14 +46,14 @@ jobs:
     runs-on: ['${{ matrix.runner }}']
     needs: checkout
     env: 
-      EXE_AGC: ./agc
+      EXE_AGC: ./bin/agc
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: recursive
-    - uses: maxim-lobanov/setup-xcode@v1
-      with:
-        xcode-version: latest-stable
+  #  - uses: maxim-lobanov/setup-xcode@v1
+  #    with:
+  #      xcode-version: latest-stable
       #  xcode-version: '14.1-beta'
            
 #    - name: make (g++ 9)
@@ -67,10 +67,10 @@ jobs:
 #        make CXX=g++-10 agc
 #        make clean
         
-    - name: make (g++ 11)
+    - name: gmake (g++ 13)
       run: |
-        make clean
-        make CXX=g++-11 agc
+        gmake clean
+        gmake CXX=g++-13 agc
         
     #- name: make (default)
     #  run: |
@@ -104,7 +104,7 @@ jobs:
     - name: camp all together
       run: |
         rm -f $DATA/agc
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
         ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN
@@ -113,7 +113,7 @@ jobs:
     - name: camp one by one
       run: |
         rm -f $DATA/agc
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
         ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN
@@ -147,7 +147,7 @@ jobs:
     - name: camp all together PAR $PARAMS
       run: |
         rm -f $DATA/agc
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
         ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN $PARAMS
@@ -156,7 +156,7 @@ jobs:
     - name: camp one by one $PARAMS
       run: |
         rm -f $DATA/agc
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
         ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN $ADAPTIVE_APPEND $PARAMS
@@ -186,7 +186,7 @@ jobs:
     - name: salmo all together
       run: |
         rm -f $DATA/agc
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
         ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN
@@ -196,7 +196,7 @@ jobs:
     - name: salmo one by one
       run: |
         rm -f $DATA/agc
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
         ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN $ADAPTIVE_APPEND
@@ -226,7 +226,7 @@ jobs:
     - name: salmo all together
       run: |
         rm -f $DATA/agc
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
         ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN $PARAMS
@@ -235,7 +235,7 @@ jobs:
     - name: salmo one by one
       run: |
         rm -f $DATA/agc
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
         ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN $ADAPTIVE_APPEND $PARAMS
@@ -266,7 +266,7 @@ jobs:
     - name: covid all together create + getcol
       run: |
         rm -f $DATA/agc
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME
         mkdir $OUT_NAME
@@ -281,7 +281,7 @@ jobs:
     - name: covid all together create -a + getset
       run: |
         rm -f $DATA/agc
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME
         mkdir $OUT_NAME
@@ -304,7 +304,7 @@ jobs:
     - name: covid all together create -a + append + getset
       run: |
         rm -f $DATA/agc
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME
         mkdir $OUT_NAME
@@ -351,7 +351,7 @@ jobs:
     - name: covid all together create + getcol
       run: |
         rm -f $DATA/agc
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME
         mkdir $OUT_NAME
@@ -388,7 +388,7 @@ jobs:
     - name: hprc all together
       run: |
         rm -f $DATA/agc
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
         ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN
@@ -396,7 +396,7 @@ jobs:
 
     - name: hprc one by one
       run: |
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
         ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN
@@ -427,7 +427,7 @@ jobs:
     - name: hprc all together
       run: |
         rm -f $DATA/agc
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
         ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN $PARAMS
@@ -436,7 +436,7 @@ jobs:
     - name: hprc one by one
       run: |
         rm -f $DATA/agc
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
         ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN $ADAPTIVE_APPEND $PARAMS
@@ -464,7 +464,7 @@ jobs:
     - name: hgsvc all together
       run: |
         rm -f $DATA/agc
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-all
         ./run_agc_complete_compr_test $OUT_NAME-all $FASTA $REF_NUM $LINE_LEN
@@ -493,7 +493,7 @@ jobs:
     - name: hgsvc one by one
       run: |
         rm -f $DATA/agc
-        cp agc $DATA/
+        cp bin/agc $DATA/
         cd $DATA
         rm -rf $OUT_NAME-1by1
         ./run_agc_complete_one_by_one_test $OUT_NAME-1by1 $FASTA $LINE_LEN

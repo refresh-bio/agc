@@ -4,8 +4,8 @@
 //
 // Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.1
-// Date   : 2024-03-12
+// Version: 3.2
+// Date   : 2024-11-21
 // *******************************************************************************************
 
 #include "application.h"
@@ -13,8 +13,8 @@
 #include <unordered_set>
 #include <fstream>
 #include <iterator>
-#include "../core/utils.h"
-#include "../../libs/ketopt.h"
+#include "../common/utils.h"
+#include "../../3rd_party/ketopt.h"
 
 // *******************************************************************************************
 bool CApplication::parse_params(const int argc, const char** argv)
@@ -111,6 +111,7 @@ void CApplication::usage_create() const
 	cerr << "   -b <int>       - batch size " << execution_params.pack_cardinality.info() << "\n";
     cerr << "   -c             - concatenated genomes in a single file (default: " << boolalpha << execution_params.concatenated_genomes << noboolalpha << ")\n";
     cerr << "   -d             - do not store cmd-line (default: " << boolalpha << execution_params.store_cmd_line << noboolalpha << ")\n";
+	cerr << "   -f <float>     - fraction of fall-back minimizers " << execution_params.fallback_frac.info() << "\n";
 	cerr << "   -i <file_name> - file with FASTA file names (alterantive to listing file names explicitely in command line)\n";
     cerr << "   -k <int>       - k-mer length" << execution_params.k.info() << "\n";
     cerr << "   -l <int>       - min. match length " << execution_params.min_match_length.info() << "\n";
@@ -126,7 +127,7 @@ bool CApplication::parse_params_create(const int argc, const char** argv)
 	ketopt_t o = KETOPT_INIT;
 	int i, c;
 
-	while ((c = ketopt(&o, argc, argv, 1, "t:b:s:k:l:acdfi:o:v:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "t:b:s:k:f:l:acdfi:o:v:", 0)) >= 0) {
 		if (c == 't') {
 			execution_params.no_threads.assign(atoi(o.arg));
 		} else if (c == 'b') {
@@ -135,6 +136,8 @@ bool CApplication::parse_params_create(const int argc, const char** argv)
 			execution_params.segment_size.assign(atoi(o.arg));
 		} else if (c == 'k') {
 			execution_params.k.assign(atoi(o.arg));
+		} else if (c == 'f') {
+			execution_params.fallback_frac.assign(atof(o.arg));
 		} else if (c == 'l') {
 			execution_params.min_match_length.assign(atoi(o.arg));
 		} else if (c == 'a') {
@@ -176,6 +179,7 @@ void CApplication::usage_append() const
 	cerr << "   -a             - adaptive mode (default: " << boolalpha << execution_params.adaptive_compression << noboolalpha << ")\n";
 	cerr << "   -c             - concatenated genomes in a single file (default: " << boolalpha << execution_params.concatenated_genomes << noboolalpha << ")\n";
     cerr << "   -d             - do not store cmd-line (default: " << boolalpha << execution_params.store_cmd_line << noboolalpha << ")\n";
+	cerr << "   -f <float>     - fraction of fall-back minimizers " << execution_params.fallback_frac.info() << "\n";
 	cerr << "   -i <file_name> - file with FASTA file names (alterantive to listing file names explicitely in command line)\n";
     cerr << "   -o <file_name> - output to file (default: output is sent to stdout)\n";
 	cerr << "   -t <int>       - no of threads " << execution_params.no_threads.info() << "\n";
@@ -188,9 +192,12 @@ bool CApplication::parse_params_append(const int argc, const char** argv)
 	ketopt_t o = KETOPT_INIT;
 	int i, c;
 
-	while ((c = ketopt(&o, argc, argv, 1, "t:acdfi:o:v:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "t:f:acdfi:o:v:", 0)) >= 0) {
 		if (c == 't') {
 			execution_params.no_threads.assign(atoi(o.arg));
+		}
+		else if (c == 'f') {
+			execution_params.fallback_frac.assign(atof(o.arg));
 		} else if (c == 'c') {
 			execution_params.concatenated_genomes = true;
 		} else if (c == 'd') {
@@ -230,9 +237,11 @@ void CApplication::usage_getcol() const
 	cerr << "Usage: agc getcol [options] <in.agc> > <out.fa>\n";
     cerr << "Options:\n";
 	cerr << "   -g <int>         - optional gzip with given level " << execution_params.gzip_level.info() << "\n";
+	cerr << "   -f               - fast mode (needs more RAM) (default: " << boolalpha << execution_params.fast << ")\n";
 	cerr << "   -l <int>         - line length " << execution_params.line_length.info() << "\n";
     cerr << "   -o <output_path> - output to files at path (default: output is sent to stdout)\n";
-    cerr << "   -t <int>         - no of threads " << execution_params.no_threads.info() << "\n";
+	cerr << "   -r               - without reference (default: " << boolalpha << execution_params.no_ref << ")\n";
+	cerr << "   -t <int>         - no of threads " << execution_params.no_threads.info() << "\n";
     cerr << "   -v <int>         - verbosity level " << execution_params.verbosity.info() << "\n";
 }
 
@@ -244,7 +253,7 @@ bool CApplication::parse_params_getcol(const int argc, const char** argv)
 
 	execution_params.prefetch = true;
 
-	while ((c = ketopt(&o, argc, argv, 1, "g:t:l:o:v:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "g:t:l:o:v:fr", 0)) >= 0) {
 		if (c == 'g') {
 			execution_params.gzip_level.assign(atoi(o.arg));
 		}
@@ -257,6 +266,12 @@ bool CApplication::parse_params_getcol(const int argc, const char** argv)
 		else if (c == 'o') {
 			execution_params.output_name = o.arg;
 			execution_params.use_stdout = false;
+		}
+		else if (c == 'f') {
+			execution_params.fast = true;
+		}
+		else if (c == 'r') {
+			execution_params.no_ref = true;
 		}
 		else if (c == 'v') {
 			execution_params.verbosity.assign(atoi(o.arg));
@@ -283,6 +298,7 @@ void CApplication::usage_getset() const
 	cerr << "   -l <int>       - line length " << execution_params.line_length.info() << "\n";
 	cerr << "   -o <file_name> - output to file (default: output is sent to stdout)\n";
 	cerr << "   -p             - disable file prefetching (useful for small genomes)" << "\n";
+	cerr << "   -s             - enable streaming mode (slower but need less memory)" << "\n";
 	cerr << "   -t <int>       - no of threads " << execution_params.no_threads.info() << "\n";
     cerr << "   -v <int>       - verbosity level " << execution_params.verbosity.info() << "\n";
 }
@@ -295,7 +311,7 @@ bool CApplication::parse_params_getset(const int argc, const char** argv)
 
 	execution_params.prefetch = true;
 
-	while ((c = ketopt(&o, argc, argv, 1, "g:t:l:o:pv:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "g:t:l:o:psv:", 0)) >= 0) {
 		if (c == 'g') {
 			execution_params.gzip_level.assign(atoi(o.arg));
 		}
@@ -309,7 +325,11 @@ bool CApplication::parse_params_getset(const int argc, const char** argv)
 		}
 		else if (c == 'p') {
 			execution_params.prefetch = false;
-		} else if (c == 'v') {
+		}
+		else if (c == 's') {
+			execution_params.streaming = true;
+		} 
+		else if (c == 'v') {
 			execution_params.verbosity.assign(atoi(o.arg));
 		}
 	}
@@ -345,6 +365,7 @@ void CApplication::usage_getctg() const
 	cerr << "   -l <int>       - line length " << execution_params.line_length.info() << "\n";
     cerr << "   -o <file_name> - output to file (default: output is sent to stdout)\n";
 	cerr << "   -p             - disable file prefetching (useful for short queries)" << "\n";
+	cerr << "   -s             - enable streaming mode (slower but need less memory)" << "\n";
 	cerr << "   -t <int>       - no of threads " << execution_params.no_threads.info() << "\n";
     cerr << "   -v <int>       - verbosity level " << execution_params.verbosity.info() << "\n";
 }
@@ -357,7 +378,7 @@ bool CApplication::parse_params_getctg(const int argc, const char** argv)
 
 	execution_params.prefetch = true;
 
-	while ((c = ketopt(&o, argc, argv, 1, "g:t:l:o:pv:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "g:t:l:o:psv:", 0)) >= 0) {
 		if (c == 'g') {
 			execution_params.gzip_level.assign(atoi(o.arg));
 		}
@@ -370,7 +391,11 @@ bool CApplication::parse_params_getctg(const int argc, const char** argv)
 			execution_params.use_stdout = false;
 		} else if (c == 'p') {
 			execution_params.prefetch = false;
-		} else if (c == 'v') {
+		} 
+		else if (c == 's') {
+			execution_params.streaming = true;
+		}
+		else if (c == 'v') {
 			execution_params.verbosity.assign(atoi(o.arg));
 		}
 	}
