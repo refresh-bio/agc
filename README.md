@@ -26,45 +26,45 @@ make
 make CXX=g++-11
 
 # Compress a collection of 3 genomes
-./agc create ref.fa in1.fa in2.fa > col.agc                         # file names given in command-line
-./agc create ref.fa in1.fa.gz in2.fa.gz > col.agc                   # gzipped non-reference FASTA files
-./agc create -i fn.txt ref.fa > col.agc                             # fl.txt contains 2 file names in seperate lines: 
+bin/agc create ref.fa in1.fa in2.fa > col.agc                         # file names given in command-line
+bin/agc create ref.fa in1.fa.gz in2.fa.gz > col.agc                   # gzipped non-reference FASTA files
+bin/agc create -i fn.txt ref.fa > col.agc                             # fl.txt contains 2 file names in seperate lines: 
                                                                     # in1.fa in2.fa
-./agc create -a -i fn.txt ref.fa > col.agc                          # adaptive mode (use for bacterial data)
-./agc create -i fn.txt -o col.agc ref.fa                            # output file name is specified as a parameter
-./agc create -i fn.txt -o col.agc -k 29 -l 22 -b 100 -t 16 ref.fa   # same as above, but manual selection 
+bin/agc create -a -i fn.txt ref.fa > col.agc                          # adaptive mode (use for bacterial data)
+bin/agc create -i fn.txt -o col.agc ref.fa                            # output file name is specified as a parameter
+bin/agc create -i fn.txt -o col.agc -k 29 -l 22 -b 100 -t 16 ref.fa   # same as above, but manual selection 
                                                                     # of compression parameters
-./agc create -c -o col.agc ref.fa samples.fa                        # compress samples stored in a single file
+bin/agc create -c -o col.agc ref.fa samples.fa                        # compress samples stored in a single file
                                                                     # (reference must be given separately)
 
 # Add new genomes to the collection
-./agc append in.agc in3.fa in4.fa > out.agc                         # add 2 genomes to the compressed archive
-./agc append -i fn.txt in.agc -o out.agc                            # add genomes (fn.txt contains file names)
-./agc append -a -i fn.txt in.agc -o out.agc                         # add genomes (adaptive mode)
+bin/agc append in.agc in3.fa in4.fa > out.agc                         # add 2 genomes to the compressed archive
+bin/agc append -i fn.txt in.agc -o out.agc                            # add genomes (fn.txt contains file names)
+bin/agc append -a -i fn.txt in.agc -o out.agc                         # add genomes (adaptive mode)
 
 # Extract all genomes from the compressed archive
-./agc getcol in.agc > out.fa                                        # extract all samples
-./agc getcol -o out_path/ in.agc                                    # extract all samples and store them in separate files
+bin/agc getcol in.agc > out.fa                                        # extract all samples
+bin/agc getcol -o out_path/ in.agc                                    # extract all samples and store them in separate files
 
 # Extract a genome or genomes from the compressed archive
-./agc getset in.agc in1 > out.fa                                    # extract sample in1 from the archive
-./agc getset in.agc in1 in2 > out.fa                                # extract samples in1 and in2 from the archive
+bin/agc getset in.agc in1 > out.fa                                    # extract sample in1 from the archive
+bin/agc getset in.agc in1 in2 > out.fa                                # extract samples in1 and in2 from the archive
 
 # Extract contigs from the compressed archive
-./agc getctg in.agc ctg1 ctg2 > out.fa                              # extract contigs ctg1 and ctg2 from the archive
-./agc getctg in.agc ctg1@gn1 ctg2@gn2 > out.fa                      # extract contigs ctg1 from genome gn1 and ctg2 from gn2 
+bin/agc getctg in.agc ctg1 ctg2 > out.fa                              # extract contigs ctg1 and ctg2 from the archive
+bin/agc getctg in.agc ctg1@gn1 ctg2@gn2 > out.fa                      # extract contigs ctg1 from genome gn1 and ctg2 from gn2 
                                                                     # (useful if contig names are not unique)
-./agc getctg in.agc ctg1@gn1:from1-to1 ctg2@gn2:from2-to2 > out.fa  # extract parts of contigs 
-./agc getctg in.agc ctg1:from1-to1 ctg2:from2-to2 > out.fa          # extract parts of contigs 
+bin/agc getctg in.agc ctg1@gn1:from1-to1 ctg2@gn2:from2-to2 > out.fa  # extract parts of contigs 
+bin/agc getctg in.agc ctg1:from1-to1 ctg2:from2-to2 > out.fa          # extract parts of contigs 
 
 # List genome names in the archive
-./agc listset in.agc > out.txt                                      # list sample names
+bin/agc listset in.agc > out.txt                                      # list sample names
 
 # List contig names in the archive
-./agc listctg in.agc gn1 gn2 > out.txt                              # list contig names in genomes gn1 and gn2
+bin/agc listctg in.agc gn1 gn2 > out.txt                              # list contig names in genomes gn1 and gn2
 
 # Show info about the compression archive
-./agc info in.agc                                                   # show some stats, parameters, command-lines 
+bin/agc info in.agc                                                   # show some stats, parameters, command-lines 
                                                                     # used to create and extend the archive
 
 ```
@@ -72,25 +72,25 @@ make CXX=g++-11
 ## Installation and configuration
 agc should be downloaded from https://github.com/refresh-bio/agc and compiled. The supported OS are:
 * Windows: Visual Studio 2022 solution provided,
-* Linux: make project (G++ 10.0 or newer required),
-* MacOS: make project (G++ 11.0 required).
+* Linux: make project (G++ 10.x or newer required),
+* MacOS: make project (G++ 11.x, 12.x, or 13.x required; GNUMake 4.3 or newer required).
 
 ### Compilation options
 For better performance gzipped input is readed using [isa-l](https://github.com/intel/isa-l) library for x64 CPUs. 
 This, however, requires [NASM](https://github.com/netwide-assembler/nasm) compiler to be installed (you can install it from GitHub or are `nasm` package, e.g., `sudo apt install nasm`).
 If NASM is not present (or at ARM-based CPUs), the [zlib-ng](https://github.com/zlib-ng/zlib-ng) is used.
 
-Compilation with default options optimizes the tool for native platform. 
-If you want more control you can specify the platform:
+Compilation with default options optimizes the tool for the native platform. 
+If you want more control, you can specify the platform:
 ```
-make PLATFORM=arm8		# compilation for ARM-based machines (turns on `-march=armv8-a`)
-make PLATFORM=m1		# compilation for M1/M2/... (turns on `-march=armv8.4-a`)
-make PLATFORM=SSE2		# compilation for x64 CPUs with SSE2 support
-make PLATFORM=AVX		# compilation for x64 CPUs with AVX support
-make PLATFORM=AVX2		# compilation for x64 CPUs with AVX2 support
+make PLATFORM=arm8    # compilation for ARM-based machines (turns on `-march=armv8-a`)
+make PLATFORM=m1      # compilation for M1/M2/... (turns on `-march=armv8.4-a`)
+make PLATFORM=sse2    # compilation for x64 CPUs with SSE2 support
+make PLATFORM=avx     # compilation for x64 CPUs with AVX support
+make PLATFORM=avx2    # compilation for x64 CPUs with AVX2 support
 ```
 
-You can also specity the g++ compiler version (if installed):
+You can also specify the g++ compiler version (if installed):
 ```
 make CXX=g++-11
 make CXX=g++-12
@@ -107,6 +107,12 @@ For detailed instructions on how to set up Bioconda, please refer to the [Biocon
 
 
 ## Version history
+* 3.2 (21 Nov 2024)
+  * Improved compression speed.
+  * Optional fallback procedure to improve compression ratio.
+  * Streaming mode for decompression &ndash; slower, but less memory needed.
+  * Binaries (agc command-line tool and libraries) are now in the `bin` directory.
+  * Small bug fixes.
 * 3.1 (18 Mar 2024)
   * Improved compression speed for gzipped input.
   * Support for ARM-based CPUs (e.g., Mac M1/M2/...).
@@ -114,19 +120,19 @@ For detailed instructions on how to set up Bioconda, please refer to the [Biocon
   * Fixed truncating .fa from gzipped input.
   * Fixed Python lib GetCtgSeq().
   * Added optional gzipping in decompression modes.
-  * Small bugfixes.
+  * Small bug fixes.
 * 3.0 (22 Dec 2022)
   * Improved compression (slightly better ratio).
-  * Improved archive format &mdash; much faster queries for archives containing large number of samples.
+  * Improved archive format &mdash; much faster queries for archives containing a large number of samples.
   * Bugfixes.
 * 2.1 (9 May 2022)
-  * Bugfix in append mode. (In version 2.0, running append could produce improper archive.)
+  * Bugfix in append mode. (In version 2.0, running append could produce an improper archive.)
 * 2.0 (5 Apr 2022)
   * Optional adaptive mode (especially for bacterial data).
-  * New mode: decompression of whole collection.
+  * New mode: decompression of the whole collection.
   * New archive format (a bit more compact): AGC 1.x tool cannot read AGC 2 archives, but AGC 2.x tool can operate on AGC 1.x and AGC 2.x archives.
 * 1.1 (14 Jan 2022)
-  * Small bugfixes.
+  * Small bug fixes.
 * 1.0 (23 Dec 2021)
   * First public release.
 
@@ -154,7 +160,8 @@ Options:
 * `-b <int>`       - batch size (default: 50; min: 1; max: 1000000000)
 * `-c`             - concatenated genomes in a single file (default: false)
 * `-d`             - do not store cmd-line (default: false)
-* `-i <file_name>` - file with FASTA file names (alterantive to listing file names explicitely in command line)
+* `-f <float>`     - fraction of fall-back minimizers (default: 0.000000; min: 0.000000; max: 0.050000)
+* `-i <file_name>` - file with FASTA file names (alternative to listing file names explicitly in command line)
 * `-k <int>`       - k-mer length (default: 31; min: 17; max: 32)
 * `-l <int>`       - min. match length (default: 20; min: 15; max: 32)
 * `-o <file_name>` - output to file (default: output is sent to stdout)
@@ -169,12 +176,12 @@ If all samples are given in a single file (concatenated genomes mode) the refere
 
 Setting parameters allows difference compromises, usually between compressed size and decompression time. The impact of the most important options is discussed below.
 * *Batch size* specifies the internal granularity of the data. If it is set to low values then in the extraction mode *agc* needs to internally decompress just a small fraction of the archive, which is fast. From the opposite side, if batch size is huge then *agc* needs to internally decompress the complete archive. This is, however, just partial decompression (to some compacted form), so the time can still be acceptable. You can experiment with this parameter as set it to your needs. Note, however, that the parameter can be set only in the `create` mode, so it cannot be changed later, when the archive is extended.
-* *k-mer length* is an internal parameter which specifies the length of _k-mers_ used to split the genomes into shorter parts (segments) for compression. The parameter should not be changed without a necessity. In fact setting it to a value between 25 and 32 should not change too much in the compression ratio and (de)compression speeds. Nevertheless, setting it to a too low value (e.g., 17 for human genomes) will make the compression much harder and you should expect poor results.
+* *k-mer length* is an internal parameter that specifies the length of _k-mers_ used to split the genomes into shorter parts (segments) for compression. The parameter should not be changed without a necessity. In fact setting it to a value between 25 and 32 should not change too much in the compression ratio and (de)compression speeds. Nevertheless, setting it to a too-low value (e.g., 17 for human genomes) will make the compression much harder, and you should expect poor results.
 * *minimal match length* is an internal parameter specifying the minimal match length when the similarities between contigs are looked for. If you really want, you can try to change it. Nevertheless, the impact on the compression ratios and (de)compression speeds should be insignificant.
-* *segment size* specifies how the contigs are splitted into shorter fragments (segments) during the compresssion. This is an expected segment size and some segments can be much longer. In general, the more similar the genomes in a collection the larger the parameter can be. Nevertheless, the impact of its value on the compression ratios and (de)compression speeds is limited. If you want, you can experiment with it. Note that for short sequences, especially for virues, the segment size should be smaller, you can try 10000 or similar values.
+* *segment size* specifies how the contigs are split into shorter fragments (segments) during the compression. This is an expected segment size and some segments can be much longer. In general, the more similar the genomes in a collection the larger the parameter can be. Nevertheless, the impact of its value on the compression ratios and (de)compression speeds is limited. If you want, you can experiment with it. Note that for short sequences, especially for virues, the segment size should be smaller, you can try 10000 or similar values.
 * *no. of threads* impacts the running time. For large genomes (e.g., human) the parallelization of the compression is realatively good and you can use 30 or more threads. Setting *segment size* to larger values can improve paralelization a bit.
 * *adaptive mode* allows to look for new splitters in all genomes (not only reference). It needs more memory but give significant gains in compression ratio and speed especially for highly divergent genomes, e.g., bacterial.
-
+* *fall-back minimizers* allow to look for matching segment when it cannot be found using splitting <i>k</i>-mers. The parameter specifies what fraction of all <i>k</i>-mers will be used in the fall-back procedure. This can be useful for highly divergent genomes. For bacterial genomes, a value of 0.01 should be a reasonable choice. The improvement of compression ratio can be up to 20%. For human data, you can try using 0.001. The potential gain can be smaller like 2&ndash;3%. This slows down the compression. Use this feature with care, as sometimes it is better not to add a segment to a group if the splitters do not match and start a new group instead.
 
 
 ### Append new genomes to the existing archive
@@ -184,7 +191,8 @@ Setting parameters allows difference compromises, usually between compressed siz
 Options:
 * `-c`             - concatenated genomes in a single file (default: false)
 * `-d`             - do not store cmd-line (default: false)
-* `-i <file_name>` - file with FASTA file names (alterantive to listing file names explicitely in command line)
+* `-f <float>`     - fraction of fall-back minimizers (default: 0.000000; min: 0.000000; max: 0.050000)
+* `-i <file_name>` - file with FASTA file names (alternative to listing file names explicitly in command line)
 * `-o <file_name>` - output to file (default: output is sent to stdout)
 * `-t <int>`       - no. of threads (default: no. logical cores / 2; min: 1; max: no. logical. cores)
 * `-v <int>`       - verbosity level (default: 0; min: 0; max: 2)
@@ -212,9 +220,10 @@ Samples can be gzipped when `-g` flag is provided.
 `agc getset [options] <in.agc> <sample_name1> [<sample_name2> ...] > <out.fa>`
 
 Options:
-* `-g <int>`         - optional gzip with given level (default: 0; min: 0; max: 9)
+* `-g <int>`       - optional gzip with given level (default: 0; min: 0; max: 9)
 * `-l <int>`       - line length (default: 80; min: 40; max: 2000000000)
 * `-o <file_name>` - output to file (default: output is sent to stdout)
+* `-s`             - enable streaming mode (slower but needs less memory)
 * `-t <int>`       - no. of threads (default: no. logical cores / 2; min: 1; max: no. logical. cores)
 * `-p`             - disable file prefetching (useful for short genomes)
 * `-v <int>`       - verbosity level (default: 0; min: 0; max: 2)
@@ -230,9 +239,10 @@ Samples can be gzipped when `-g` flag is provided.
 `agc getctg [options] <in.agc> <contig1@sample1:from1-to1> [<contig2@sample2:from2-to2> ...] > <out.fa>`
 
 Options:
-* `-g <int>`         - optional gzip with given level (default: 0; min: 0; max: 9)
+* `-g <int>`       - optional gzip with given level (default: 0; min: 0; max: 9)
 * `-l <int>`       - line length (default: 80; min: 40; max: 2000000000)
 * `-o <file_name>` - output to file (default: output is sent to stdout)
+* `-s`             - enable streaming mode (slower but needs less memory)
 * `-t <int>`       - no. of threads (default: no. logical cores / 2; min: 1; max: no. logical. cores)
 * `-p`             - disable file prefetching (useful for short queries)
 * `-v <int>`       - verbosity level (default: 0; min: 0; max: 2)
@@ -308,7 +318,7 @@ agc create -o toy_ex/toy_ex.agc toy_ex/ref.fa toy_ex/a.fa toy_ex/b.fa toy_ex/c.f
 ```
 The AGC file is read in Python test script (`py_agc_api/py_agc_test.py`) and can be used in the example using C/C++ library (`src/examples`).
 
-For more options see Usage section.
+For more options, see the Usage section.
 
 ## Large datasets
 Archives of 94 haplotype human assemblies <a href="https://github.com/human-pangenomics/HPP_Year1_Data_Freeze_v1.0">released by HPRC</a> in 2021 as well as 619,750 complete SARC-Cov-2 genomes <a href="https://www.ncbi.nlm.nih.gov/datasets/coronavirus/genomes/">published by NCBI</a> can be downloaded from <a href="https://zenodo.org/record/5826274">Zenodo</a>.
