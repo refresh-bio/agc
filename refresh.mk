@@ -1,4 +1,4 @@
-### REFRESH group macros - v.1.0.7 (2024-11-14)
+### REFRESH group macros - v.1.0.9 (2024-11-25)
 
 ### Macros for initialization
 define INIT_GLOBALS
@@ -20,6 +20,7 @@ define INIT_GLOBALS
 	$(eval OBJ_DIR:=./obj)
 	$(eval OUT_BIN_DIR:=./bin)
 	$(eval AR?=ar)
+	$(eval NASM?=nasm)
 endef
 
 ### Macros for 3rd-party libraries registration
@@ -29,7 +30,7 @@ define ADD_ZLIB_NG
 	$(eval ZLIB_DIR:=$(1))
 	$(eval ZLIB_A_DIR:=$(1)/build-g++/zlib-ng)
 	$(eval ZLIB_A:=$(ZLIB_A_DIR)/libz.a)
-	$(eval INCLUDE_DIRS+=-I$(ZLIB_DIR)/build-g++)
+	$(eval INCLUDE_DIRS+=-I$(ZLIB_DIR)/build-g++ -I$(ZLIB_DIR)/build-g++/zlib-ng)
 	$(eval LIBRARY_FILES+=$(ZLIB_A))
 	$(eval LINKER_DIRS+=-L $(ZLIB_A_DIR))
 	$(eval PREBUILD_JOBS+=zlib-ng)
@@ -80,7 +81,7 @@ define ADD_LIBDEFLATE
 		cd $(LIBDEFLATE_DIR) && cmake $(CMAKE_OSX_FIX) -DCMAKE_CXX_COMPILER=$(CXX) -DCMAKE_C_COMPILER=$(CC) -DLIBDEFLATE_BUILD_SHARED_LIB=OFF -DLIBDEFLATE_BUILD_GZIP=OFF -B build && cmake --build build)
 endef
 
-# Add zstd	(!!! CHECK)
+# Add zstd
 define ADD_LIBZSTD
 	$(info *** Adding libzstd ***)
 	$(eval INCLUDE_DIRS+=-I$(1))
@@ -267,6 +268,21 @@ define ADD_EIGEN_LIB
 	$(eval INCLUDE_DIRS+=-I$(1))
 endef
 
+# Add NASM
+# Idea is that if in Makefile ADD_NASM is called it will override the system one
+define ADD_NASM
+	$(info *** Adding NASM ***)
+	$(eval export PATH := $(abspath $(1)):$(PATH))
+	$(if $(filter x86_64,$(ARCH_TYPE)), \
+		$(eval dummy_install_nasm:=$(shell \
+			if [ ! -f $(1)/nasm ]; then \
+				cd $(1) && ./autogen.sh && ./configure && $(MAKE) -j; \
+			fi) \
+		) \
+		$(eval NASM:=$(1)/nasm) \
+	)
+endef
+
 ### Macros configuring compiler/linker flags
 # Add os-specific flags for static linking
 define SET_STATIC
@@ -275,7 +291,7 @@ define SET_STATIC
 			$(eval STATIC_LFLAGS:=-static-libgcc -static-libstdc++ -pthread), \
 			$(if $(filter x86_64,$(ARCH_TYPE)), \
 				$(eval STATIC_LFLAGS:=-static -Wl,--whole-archive -lpthread -Wl,--no-whole-archive), \
-				$(eval STATIC_LFLAGS:=-static-libgcc -static-libstdc++ -lpthread) \
+				$(eval STATIC_LFLAGS:=-static -Wl,--whole-archive -lpthread -Wl,--no-whole-archive) \
 			)
 		)
 	)
@@ -473,11 +489,10 @@ prebuild:
 	$(PREBUILD_JOBS)
 endef
 
-
 ### Macros checking system and software
 # Check for NASM
 define CHECK_NASM
-	$(eval NASM_VERSION:=$(shell nasm --version 2>/dev/null))
+	$(eval NASM_VERSION:=$(shell $(NASM) --version 2>/dev/null))
 endef
 
 # Choose lib for gzip decompression
@@ -489,11 +504,11 @@ define CHOOSE_GZIP_DECOMPRESSION
 			$(eval INCLUDE_DIRS+=-I$(ISAL_DIR)/include) ,\
 			$(eval GZ_TARGET:=zlib-ng) \
 			$(eval PREBUILD_JOBS+=zlib-ng) \
-			$(eval INCLUDE_DIRS+=-I$(ZLIB_DIR)/build-g++) \
+			$(eval INCLUDE_DIRS+=-I$(ZLIB_DIR)/build-g++ -I$(ZLIB_DIR)/build-g++/zlib-ng) \
 		), \
 		$(eval GZ_TARGET:=zlib-ng) \
 		$(eval PREBUILD_JOBS+=zlib-ng) \
-		$(eval INCLUDE_DIRS+=-I$(ZLIB_DIR)/build-g++) \
+		$(eval INCLUDE_DIRS+=-I$(ZLIB_DIR)/build-g++ -I$(ZLIB_DIR)/build-g++/zlib-ng) \
   	)
 
 	$(if $(filter isa-l,$(GZ_TARGET)), \
@@ -561,11 +576,21 @@ define CHECK_OS_ARCH
 endef
 
 # Load submodules if necessary
-define INIT_SUBMODULES
-	$(info *** Initialization of submodules ***)
-	$(eval dummy:=$(shell git submodule update --init --recursive))
+#	$(eval dummy:=$(shell git submodule update --init --recursive))
+
+define INIT_SUBMODULES_FAST
+	$(info *** Initialization of submodules (fast) ***)
+	$(if $(shell git submodule status | grep '^-'), \
+		$(info Initializing and updating submodules...) \
+		$(eval dummy:=$(shell git submodule update --init --recursive --jobs=8)), \
+		$(info Submodules are already up-to-date or none exist.)
+	)
 endef
 
+define INIT_SUBMODULES
+	$(info *** Initialization of submodules ***)
+	$(eval dummy:=$(shell git submodule update --init --recursive --jobs=8))
+endef
 
 ### Clean library targets
 clean-zlib-ng:
