@@ -2336,8 +2336,6 @@ bool CAGCCompressor::Append(const string& _in_archive_fn, const string& _out_arc
     fallback_frac = _fallback_frac;
     fallback_filter.reset(fallback_frac);
 
-    min_match_len = compression_params.min_match_len;
-    uint32_t segment_size = compression_params.segment_size;
     verbosity = _verbosity;
 
     if (!load_file_type_info(in_archive_name))
@@ -2347,6 +2345,10 @@ bool CAGCCompressor::Append(const string& _in_archive_fn, const string& _out_arc
 
     if (!load_metadata())
         return false;
+
+    min_match_len = compression_params.min_match_len;
+    uint32_t segment_size = compression_params.segment_size;
+
     working_mode = working_mode_t::appending;
 
     out_archive = make_shared<CArchive>(false, 32 << 20);
