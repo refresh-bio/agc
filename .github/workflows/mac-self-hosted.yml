@@ -29,14 +29,9 @@ jobs:
     name: Checkout
     runs-on: ['${{ matrix.runner }}']
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         submodules: recursive
-
-  #  - uses: maxim-lobanov/setup-xcode@v1
-   #   with:
-    #    xcode-version: latest-stable
-      #  xcode-version: '14.1-beta'
 
   make-tests:
     strategy:
@@ -48,34 +43,16 @@ jobs:
     env: 
       EXE_AGC: ./bin/agc
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         submodules: recursive
-  #  - uses: maxim-lobanov/setup-xcode@v1
-  #    with:
-  #      xcode-version: latest-stable
-      #  xcode-version: '14.1-beta'
-           
-#    - name: make (g++ 9)
-#      run: |
-#        make clean
-#        make CXX=g++-9 agc
-#        make clean
-        
-#    - name: make (g++ 10)
-#      run: |
-#        make CXX=g++-10 agc
-#        make clean
         
     - name: gmake (g++ 13)
       run: |
         gmake clean
         gmake CXX=g++-13 agc
         
-    #- name: make (default)
-    #  run: |
-    #    make agc
-      
+
     - name: Print usage
       run: |
         $EXE_AGC --help

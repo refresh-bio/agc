@@ -17,7 +17,7 @@ jobs:
     env:
      EXE_AGC: ../bin/agc
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         submodules: recursive
     - name: make CXX=g++-12 agc
@@ -352,11 +352,14 @@ jobs:
         
         
   toy-example-macos:
-    strategy:
-      matrix:
-        os:  [macos-13, macos-12]
 
-    name: Make Test GitHub macos
+    name: Make Test GitHub macos ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14]
+
     runs-on: ${{ matrix.os }}
     env:
      EXE_AGC: ../bin/agc
@@ -369,14 +372,17 @@ jobs:
  #     with:
  #       xcode-version: latest-stable
  #     #  xcode-version: '14.1'
-    - name: gmake CXX=g++-12 agc
+    - name: gmake CXX=g++-13 agc
       run: |
-        brew install make
+        set -e
+        brew update
+        brew install make gcc
         gmake clean
-        gmake CXX=g++-12 agc
+        gmake CXX=g++-13 agc
       
     - name: toy example
       run: |
+        set -e
         cd toy_ex
         $EXE_AGC 
         $EXE_AGC create

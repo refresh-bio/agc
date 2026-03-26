@@ -23,7 +23,7 @@ cd agc
 make
 
 # MacOS compilation: must specify g++ compiler
-make CXX=g++-11
+gmake CXX=g++-13
 
 # Compress a collection of 3 genomes
 bin/agc create ref.fa in1.fa in2.fa > col.agc                         # file names given in command-line
@@ -73,7 +73,7 @@ bin/agc info in.agc                                                   # show som
 agc should be downloaded from https://github.com/refresh-bio/agc and compiled. The supported OS are:
 * Windows: Visual Studio 2022 solution provided,
 * Linux: make project (G++ 10.x or newer required),
-* MacOS: make project (G++ 11.x, 12.x, or 13.x required; GNUMake 4.3 or newer required).
+* MacOS: make project (G++ 12.x, or 13.x required; GNUMake 4.3 or newer required).
 
 ### Compilation options
 For better performance gzipped input is readed using [isa-l](https://github.com/intel/isa-l) library for x64 CPUs. 

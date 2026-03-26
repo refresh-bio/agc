@@ -1,0 +1,111 @@
+name: Deploy
+
+on:
+ release:
+    types:
+      - created
+
+permissions:
+  contents: write
+  
+ 
+jobs:
+
+
+########################################################################################
+  build_and_upload:
+    name: Build Packages
+    strategy:
+      fail-fast: false
+      matrix:
+        machine: [x64_linux]
+        platform: [avx2]
+        compiler: [13]
+        include:
+        - {machine: arm64_linux, platform: arm8, compiler: 13}
+        - {machine: x64_mac, platform: avx2, compiler: 13}
+        - {machine: m1_mac, platform: m1, compiler: 13}
+        - {machine: x64_windows, platform: win, compiler: 13}
+       
+    runs-on: [self-hosted, agc, '${{ matrix.machine }}']  
+
+    env:
+      MSBUILD: "C:/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe"
+    
+    steps:
+    - name: Clean workspace (Linux/mac)
+      if: runner.os != 'Windows'
+      run: rm -rf ${{ github.workspace }}/*
+   
+    - name: Clean workspace (Windows)
+      if: runner.os == 'Windows'
+      shell: powershell
+      run: |
+        Remove-Item -Recurse -Force "$env:GITHUB_WORKSPACE\*" -ErrorAction Ignore
+
+    - name: Checkout repository
+      uses: actions/checkout@v5
+      with:
+        submodules: recursive
+    
+    - name: Build Linux/mac
+      if: runner.os != 'Windows'
+      run: |
+        gmake -j32 CXX=g++-${{matrix.compiler}} CC=gcc-${{matrix.compiler}} STATIC_LINK=true PLATFORM=${{ matrix.platform }} agc
+   
+    - name: Package Linux/mac 
+      if: runner.os != 'Windows'
+      run: tar -cvzf agc-${{ github.event.release.tag_name }}-${{ matrix.machine }}.tar.gz LICENSE README.md -C ./bin agc 
+          
+    - name: Upload Linux/mac package to Release
+      if: runner.os != 'Windows'
+      uses: softprops/action-gh-release@v2
+      with:
+        files: agc-${{ github.event.release.tag_name }}-${{ matrix.machine }}.tar.gz
+        fail_on_unmatched_files: true
+ 
+    - name: Build (Windows Visual Studio)
+      if: runner.os == 'Windows'
+      run: | 
+        & "$env:MSBUILD" agc-dev.sln /p:Configuration=Release /p:Platform=x64 /m
+        
+    - name: Rename Windows executable
+      if: runner.os == 'Windows'
+      run: |
+       Rename-Item -Path "./x64/Release/agc-dev.exe" -NewName "agc.exe"
+  
+    - name: Package Windows artifact
+      if: runner.os == 'Windows'
+      run: |
+        Compress-Archive `
+          -Path "./x64/Release/agc.exe", "LICENSE", "README.md" `
+          -DestinationPath "agc-${{ github.event.release.tag_name }}-${{matrix.machine}}.zip"
+
+    - name: Upload Windows package to Release
+      if: runner.os == 'Windows'
+      uses: softprops/action-gh-release@v2
+      with:
+        files: agc-${{ github.event.release.tag_name }}-${{ matrix.machine }}.zip
+        fail_on_unmatched_files: true
+
+    
+########################################################################################
+  help:
+    name: Print usage
+    needs: build_and_upload
+    strategy:
+      fail-fast: false
+      matrix:
+        machine: [x64_linux, m1_mac, x64_mac, arm64_linux, x64_windows]
+    runs-on: [self-hosted, agc, '${{ matrix.machine }}']
+        
+    steps:
+    - name: version (Linux/mac)
+      if: runner.os != 'Windows'
+      run: ./bin/agc
+
+    - name: version (Windows)
+      if: runner.os == 'Windows'
+      run: ./x64/Release/agc.exe
+
+

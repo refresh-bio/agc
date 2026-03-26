@@ -1603,6 +1603,11 @@ pair<uint64_t, uint32_t> CAGCCompressor::find_cand_segment_with_missing_middle_s
     uint32_t best_sum = ~0u;
     uint32_t best_pos = 0;
 
+    if(v_costs1.size() != v_costs2.size())    
+    {      
+        return make_pair(~0ull, 0); 
+    }
+
     for (uint32_t i = 0; i < v_costs1.size(); ++i)
     {
         uint32_t cs = v_costs1[i] + v_costs2[i];
@@ -2336,8 +2341,6 @@ bool CAGCCompressor::Append(const string& _in_archive_fn, const string& _out_arc
     fallback_frac = _fallback_frac;
     fallback_filter.reset(fallback_frac);
 
-    min_match_len = compression_params.min_match_len;
-    uint32_t segment_size = compression_params.segment_size;
     verbosity = _verbosity;
 
     if (!load_file_type_info(in_archive_name))

@@ -1,7 +1,5 @@
 name: Self-hosted CI TOY EXAMPLE
 
-
-
 on:
   #push:
   #    paths-ignore:
@@ -12,44 +10,22 @@ jobs:
   toy-example:
     strategy:
       matrix:
-        runner: [linux-self-hosted, mac-self-hosted-M1, mac-self-hosted-Intel]
+        runner: [x64_linux, arm64_linux, mac-self-hosted-M1, mac-self-hosted-Intel]
 
     name: Toy Test Runner
-    runs-on: ['${{ matrix.runner }}']
+    runs-on: [self-hosted, agc, '${{ matrix.runner }}']
     env:
      EXE_AGC: ../bin/agc
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         submodules: recursive
-  #  - uses: maxim-lobanov/setup-xcode@v1.6.0
-  #    with:
-  #      xcode-version: latest-stable
-      #  xcode-version: '14.1-beta'
- #     if: ${{ matrix.runner == 'self-hosted-mac-M1' }}
- #   - uses: maxim-lobanov/setup-xcode@v1.6.0
- #     with:
- #       xcode-version: latest-stable
- #     #  xcode-version: '14.1-beta'
- #     if: ${{ matrix.runner == 'self-hosted-mac-Intel' }}
-   # - name: make CXX=g++-11 agc
-   #   run: |
-   #     make clean
-   #     make CXX=g++-11 agc
-   # - name: make CXX=g++-12 agc
-   #   run: |
-   #     make clean
-   #     make CXX=g++-12 agc
-
+ 
     - name: make CXX=g++-13 agc
       run: |
         gmake clean
         gmake CXX=g++-13 agc
-   #
-   # - name: make CXX=g++-14 agc
-   #   run: |
-   #     make clean
-   #     make CXX=g++-14 agc
+ 
    
 #CREATE
 
@@ -173,6 +149,7 @@ jobs:
         cmp c.fa getcol/c.fa
         cmp ref.fa getcol/ref.fa
         rm -fr getcol 
+        
     - name: toy example getcol -g (from gz)
       run: |
         cd toy_ex
