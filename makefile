@@ -1,5 +1,5 @@
 # all: agc libagc py_agc_api
-all: agc libagc py_agc_api
+all: agc libagc libagc_so py_agc_api
 
 # *** REFRESH makefile utils
 include refresh.mk
@@ -57,7 +57,8 @@ $(OUT_BIN_DIR)/agc: \
 	$(CXX) -o $@  \
 	$(MIMALLOC_OBJ) \
 	$(OBJ_APP) $(OBJ_CORE) $(OBJ_COMMON) \
-	$(LIBRARY_FILES) $(LINKER_FLAGS) $(LINKER_DIRS)
+	$(LIBRARY_FILES) -lzstd -lz -ldeflate $(LINKER_FLAGS) $(LINKER_DIRS)
+
 
 libagc: $(OUT_BIN_DIR)/libagc
 $(OUT_BIN_DIR)/libagc: \
@@ -66,6 +67,11 @@ $(OUT_BIN_DIR)/libagc: \
 	$(AR) $(AR_OPT) $@.a  \
 	$(OBJ_LIB_CXX) $(OBJ_COMMON)
 
+libagc_so: $(OUT_BIN_DIR)/libagc.so
+$(OUT_BIN_DIR)/libagc.so: \
+	$(OBJ_LIB_CXX) $(OBJ_COMMON)
+	-mkdir -p $(OUT_BIN_DIR)
+	gcc -shared -o $(OUT_BIN_DIR)/libagc.so $(OBJ_LIB_CXX) $(OBJ_COMMON)
 
 #.PHONY:py_agc_api
 py_agc_api: $(OUT_BIN_DIR)/py_agc_api
