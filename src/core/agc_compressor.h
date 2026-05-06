@@ -303,7 +303,7 @@ private:
 	atomic<int32_t> a_v_part_id;
 
 public:
-	static const int32_t part_id_step = 1;
+	static const int32_t part_id_step = 10;
 
 	CBufferedSegPart(uint32_t no_raw_groups)
 	{
