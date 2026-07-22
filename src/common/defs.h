@@ -5,10 +5,10 @@
 // This file is a part of AGC software distributed under MIT license.
 // The homepage of the AGC project is https://github.com/refresh-bio/agc
 //
-// Copyright(C) 2021-2024, S.Deorowicz, A.Danek, H.Li
+// Copyright(C) 2021-2026, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.2.2
-// Date   : 2026-03-26
+// Version: 3.2.4
+// Date   : 2026-07-22
 // *******************************************************************************************
 
 #include <string>
@@ -22,8 +22,8 @@ typedef vector<uint8_t> packed_block_t;
 
 const uint32_t AGC_VER_MAJOR = 3;
 const uint32_t AGC_VER_MINOR = 2;
-const uint32_t AGC_VER_BUGFIX = 2;
-const string AGC_VER_BUILD = "20260326.1"s;
+const uint32_t AGC_VER_BUGFIX = 4;
+const string AGC_VER_BUILD = "20260722.1"s;
 
 const uint32_t AGC_FILE_MAJOR = 3;
 const uint32_t AGC_FILE_MINOR = 0;
