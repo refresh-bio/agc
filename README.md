@@ -1,5 +1,6 @@
 Assembled Genomes Compressor
 =
+[![Bioinformatics 2023 10.1093/bioinformatics/btad097](https://img.shields.io/badge/Bioinformatics%202023-10.1093%2Fbioinformatics%2Fbtad097-blue)](https://doi.org/10.1093/bioinformatics/btad097) 
 [![GitHub downloads](https://img.shields.io/github/downloads/refresh-bio/agc/total.svg?style=flag&label=GitHub%20downloads)](https://github.com/refresh-bio/agc/releases)
 [![Bioconda downloads](https://img.shields.io/conda/dn/bioconda/agc.svg?style=flag&label=Bioconda%20downloads)](https://anaconda.org/bioconda/agc)
 
