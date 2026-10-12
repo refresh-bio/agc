@@ -116,18 +116,18 @@ typedef struct agc_t agc_t;
  *
  * @return NULL for error
  */
-EXTERNC agc_t* agc_open(char* fn, int prefetching);
+EXTERNC agc_t* agc_open(char* fn, int prefetching) noexcept;
 
 /**
  * @param fp   agc handle
  *
  * @return 0 for success and -1 for error
  */
-EXTERNC int agc_close(agc_t* agc);
+EXTERNC int agc_close(agc_t* agc) noexcept;
 
 /**
  * Get the length of a contig. Return an error if _name_ is not present, or if
- * _name_ is not unique but _sample_ is NULL, 
+ * _name_ is not unique but _sample_ is NULL,
  *
  * @param agc      agc handle
  * @param sample   sample name; can be NULL
@@ -135,7 +135,7 @@ EXTERNC int agc_close(agc_t* agc);
  *
  * @return contig length, or <0 for errors
  */
-EXTERNC int agc_get_ctg_len(const agc_t *agc, const char *sample, const char *name);
+EXTERNC int agc_get_ctg_len(const agc_t *agc, const char *sample, const char *name) noexcept;
 
 /**
  * @param agc      agc handle
@@ -147,14 +147,14 @@ EXTERNC int agc_get_ctg_len(const agc_t *agc, const char *sample, const char *na
  *
  * @return contig length, or <0 for errors
  */
-EXTERNC int agc_get_ctg_seq(const agc_t *agc, const char *sample, const char *name, int start, int end, char *buf);
+EXTERNC int agc_get_ctg_seq(const agc_t *agc, const char *sample, const char *name, int start, int end, char *buf) noexcept;
 
 /**
  * @param agc      agc handle
  *
  * @return the number of samples
  */
-EXTERNC int agc_n_sample(const agc_t* agc);
+EXTERNC int agc_n_sample(const agc_t* agc) noexcept;
 
 /**
  * @param agc      agc handle
@@ -162,14 +162,14 @@ EXTERNC int agc_n_sample(const agc_t* agc);
  *
  * @return the number of contigs in sample
  */
-EXTERNC int agc_n_ctg(const agc_t *agc, const char *sample);
+EXTERNC int agc_n_ctg(const agc_t *agc, const char *sample) noexcept;
 
 /**
  * @param agc       agc handle
  *
  * @return NULL-terminated string. Use agc_string_destroy() to deallocate.
  */
-EXTERNC char* agc_reference_sample(const agc_t* agc);
+EXTERNC char* agc_reference_sample(const agc_t* agc) noexcept;
 
 /**
  * @param agc       agc handle
@@ -177,7 +177,7 @@ EXTERNC char* agc_reference_sample(const agc_t* agc);
  *
  * @return array of NULL-terminated strings. Use agc_list_destroy() to deallocate.
  */
-EXTERNC char **agc_list_sample(const agc_t *agc, int *n_sample);
+EXTERNC char **agc_list_sample(const agc_t *agc, int *n_sample) noexcept;
 
 /**
  * @param agc       agc handle
@@ -186,21 +186,21 @@ EXTERNC char **agc_list_sample(const agc_t *agc, int *n_sample);
  *
  * @return array of NULL-terminated strings. Use agc_list_destroy() to deallocate.
  */
-EXTERNC char **agc_list_ctg(const agc_t *agc, const char *sample, int *n_ctg);
+EXTERNC char **agc_list_ctg(const agc_t *agc, const char *sample, int *n_ctg) noexcept;
 
 /**
  * Deallocate an array of strings returned by agc_list_samples or agc_list_ctg
  *
  * @param list      array to deallocate
  */
-EXTERNC int agc_list_destroy(char **list);
+EXTERNC int agc_list_destroy(char **list) noexcept;
 
 /**
  * Deallocate string returned by agc_reference_sample
  *
  * @param sample	string to deallocate
  */
-EXTERNC int agc_string_destroy(char *sample);
+EXTERNC int agc_string_destroy(char *sample) noexcept;
 
 #endif
 

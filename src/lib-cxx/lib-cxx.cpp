@@ -123,7 +123,7 @@ int CAGCFile::ListCtg(const std::string& sample, std::vector<std::string>& names
 // *******************************************************************************************
 // C part
 // *******************************************************************************************
-agc_t* agc_open(char* fn, int prefetching)
+agc_t* agc_open(char* fn, int prefetching) noexcept
 {
 	agc_t* agc = new CAGCFile();
 	bool r = agc->Open(fn, (bool)prefetching);
@@ -138,33 +138,54 @@ agc_t* agc_open(char* fn, int prefetching)
 }
 
 // *******************************************************************************************
-int agc_close(agc_t* agc)
+int agc_close(agc_t* agc) noexcept
 {
-	if (!agc)
-		return -1;
+    if (!agc)
+        return -1;
 
-	return agc->Close() ? 0 : -1;
+    try {
+        return agc->Close() ? 0 : -1;
+    }
+    catch (...) {
+        // Log the error but can't throw
+        fprintf(stderr, "AGC error in agc_close: exception caught\n");
+        return -1;  // Return safe default
+    }
 }
 
 // *******************************************************************************************
-int agc_n_sample(const agc_t* agc)
+int agc_n_sample(const agc_t* agc) noexcept
 {
-	if (!agc)
-		return -1;
+    if (!agc)
+        return -1;
 
+    try {
 	return agc->NSample();
+    }
+    catch (...) {
+        // Log the error but can't throw
+        fprintf(stderr, "AGC error in agc_n_sample: exception caught\n");
+        return -1;  // Return safe default
+    }
 }
 
 // *******************************************************************************************
-int agc_get_ctg_seq(const agc_t* agc, const char* sample, const char* name, int start, int end, char* buf)
+int agc_get_ctg_seq(const agc_t* agc, const char* sample, const char* name, int start, int end, char* buf) noexcept
 {
 	if (!agc)
 		return -1;
 
 	string buffer;
 
-	if (agc->GetCtgSeq(sample ? sample : "", name, start, end, buffer) != 0)
+        try {
+            if (agc->GetCtgSeq(sample ? sample : "", name, start, end, buffer) != 0)
 		return -1;
+        }
+        catch (...) {
+            // Log the error but can't throw
+            fprintf(stderr, "AGC error in %s: exception caught\n", __FUNCTION__);
+            return -1;  // Return safe default
+        }
 
 	strcpy(buf, buffer.data());
 
@@ -172,57 +193,84 @@ int agc_get_ctg_seq(const agc_t* agc, const char* sample, const char* name, int 
 }
 
 // *******************************************************************************************
-int agc_get_ctg_len(const agc_t* agc, const char* sample, const char* name)
+int agc_get_ctg_len(const agc_t* agc, const char* sample, const char* name) noexcept
 {
 	if (!agc)
 		return -1;
 
-	return agc->GetCtgLen(sample ? sample : "", name);
+        try {
+            return agc->GetCtgLen(sample ? sample : "", name);
+        }
+        catch (...) {
+            // Log the error but can't throw
+            fprintf(stderr, "AGC error in %s: exception caught\n", __FUNCTION__);
+            return -1;  // Return safe default
+        }
 }
 
 // *******************************************************************************************
-int agc_n_ctg(const agc_t* agc, const char* sample)
+int agc_n_ctg(const agc_t* agc, const char* sample) noexcept
 {
 	if (!agc)
 		return -1;
 
-	return agc->NCtg(sample);
+        try {
+            return agc->NCtg(sample);
+        }
+        catch (...) {
+            // Log the error but can't throw
+            fprintf(stderr, "AGC error in %s: exception caught\n", __FUNCTION__);
+            return -1;  // Return safe default
+        }
 }
 
 // *******************************************************************************************
-char* agc_reference_sample(const agc_t* agc)
+char* agc_reference_sample(const agc_t* agc) noexcept
 {
 	if (!agc)
 		return NULL;
 
-	string sample;
+        try {
+            string sample;
 
-	if (agc->GetReferenceSample(sample) < 0)
+            if (agc->GetReferenceSample(sample) < 0)
 		return NULL;
+            char* c_sample = (char*) malloc(sample.size() + 1);
+            strcpy(c_sample, sample.c_str());
 
-	char* c_sample = (char*) malloc(sample.size() + 1);
-	strcpy(c_sample, sample.c_str());
+            return c_sample;
+        }
+        catch (...) {
+            // Log the error but can't throw
+            fprintf(stderr, "AGC error in %s: exception caught\n", __FUNCTION__);
+            return NULL;  // Return safe default
+        }
 
-	return c_sample;
 }
 
 // *******************************************************************************************
-char** agc_list_sample(const agc_t* agc, int* n_sample)
+char** agc_list_sample(const agc_t* agc, int* n_sample) noexcept
 {
 	if (!agc)
 		return NULL;
 
-	vector<string> v_samples;
+        try {
+            vector<string> v_samples;
 
-	agc->ListSample(v_samples);
+            agc->ListSample(v_samples);
 
-	*n_sample = (int)v_samples.size();
-
-	return agc_internal_cnv_vec2list(v_samples);
+            *n_sample = (int)v_samples.size();
+            return agc_internal_cnv_vec2list(v_samples);
+        }
+        catch (...) {
+            // Log the error but can't throw
+            fprintf(stderr, "AGC error in %s: exception caught\n", __FUNCTION__);
+            return NULL;  // Return safe default
+        }
 }
 
 // *******************************************************************************************
-char** agc_internal_cnv_vec2list(vector<string>& vec)
+char** agc_internal_cnv_vec2list(vector<string>& vec) // not part of C ABI
 {
 	char** list = (char**)malloc(sizeof(char*) * (vec.size() + 1));
 
@@ -253,22 +301,29 @@ char** agc_internal_cnv_vec2list(vector<string>& vec)
 }
 
 // *******************************************************************************************
-char** agc_list_ctg(const agc_t* agc, const char* sample, int* n_ctg)
+char** agc_list_ctg(const agc_t* agc, const char* sample, int* n_ctg) noexcept
 {
 	if (!agc)
 		return NULL;
 
-	vector<string> v_contigs;
+        try {
+            vector<string> v_contigs;
 
-	agc->ListCtg(sample, v_contigs);
+            agc->ListCtg(sample, v_contigs);
 
-	*n_ctg = (int)v_contigs.size();
+            *n_ctg = (int)v_contigs.size();
 
-	return agc_internal_cnv_vec2list(v_contigs);
+            return agc_internal_cnv_vec2list(v_contigs);
+        }
+        catch (...) {
+            // Log the error but can't throw
+            fprintf(stderr, "AGC error in %s: exception caught\n", __FUNCTION__);
+            return NULL;  // Return safe default
+        }
 }
 
 // *******************************************************************************************
-int agc_list_destroy(char** list)
+int agc_list_destroy(char** list) noexcept
 {
 	for (char** p = list; p; ++p)
 		free(*p);
@@ -279,12 +334,19 @@ int agc_list_destroy(char** list)
 }
 
 // *******************************************************************************************
-int agc_list_destroy(char* sample)
+int agc_list_destroy(char* sample) noexcept
 {
 	free(sample);
 
 	return 0;
 }
 
+// *******************************************************************************************
+int agc_string_destroy(char *sample) noexcept
+{
+	free(sample);
+
+	return 0;
+}
 
 // EOF
