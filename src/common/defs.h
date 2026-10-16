@@ -7,8 +7,8 @@
 //
 // Copyright(C) 2021-2026, S.Deorowicz, A.Danek, H.Li
 //
-// Version: 3.2.4
-// Date   : 2026-07-22
+// Version: 3.2.5
+// Date   : 2026-10-16
 // *******************************************************************************************
 
 #include <string>
@@ -22,8 +22,8 @@ typedef vector<uint8_t> packed_block_t;
 
 const uint32_t AGC_VER_MAJOR = 3;
 const uint32_t AGC_VER_MINOR = 2;
-const uint32_t AGC_VER_BUGFIX = 4;
-const string AGC_VER_BUILD = "20260722.1"s;
+const uint32_t AGC_VER_BUGFIX = 5;
+const string AGC_VER_BUILD = "20261016.1"s;
 
 const uint32_t AGC_FILE_MAJOR = 3;
 const uint32_t AGC_FILE_MINOR = 0;

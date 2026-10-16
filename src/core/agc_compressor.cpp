@@ -2035,7 +2035,8 @@ bool CAGCCompressor::compress_contig(contig_processing_stage_t contig_processing
         ++pos;
     }
 
-    if (adaptive_compression && contig_processing_stage == contig_processing_stage_t::all_contigs && split_kmer == CKmer(kmer_length, kmer_mode_t::canonical))
+ //   if (adaptive_compression && contig_processing_stage == contig_processing_stage_t::all_contigs && split_kmer == CKmer(kmer_length, kmer_mode_t::canonical))
+    if (adaptive_compression && contig_processing_stage == contig_processing_stage_t::all_contigs && split_kmer.get_cur_size() == 0)
     {
         if(contig.size() >= segment_size)
             find_new_splitters(contig, thread_id);

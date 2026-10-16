@@ -448,6 +448,8 @@ public:
 
 	// *******************************************************************************************
 	bool operator==(const CKmer&x) const {
+		if (cur_size != x.cur_size)
+			return false;
 		if (variant != kmer_mode_t::rev_comp)
 			return kmer_dir == x.kmer_dir;
 		else
@@ -456,6 +458,8 @@ public:
 
 	// *******************************************************************************************
 	bool operator!=(const CKmer&x) const {
+		if (cur_size != x.cur_size)
+        		return true;
 		if (variant != kmer_mode_t::rev_comp)
 			return kmer_dir != x.kmer_dir;
 		else
